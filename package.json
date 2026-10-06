@@ -1,0 +1,13 @@
+{
+  "name": "synapse",
+  "version": "1.0.0",
+  "private": true,
+  "description": "SYNAPSE — adaptive cognitive challenge game (HTML/CSS/JS, no build step).",
+  "type": "module",
+  "scripts": {
+    "start": "npx --yes http-server -p 8080 -c-1 .",
+    "test": "node tests/run.mjs",
+    "lint": "npx --yes eslint src tests"
+  },
+  "license": "UNLICENSED"
+}
