@@ -4,11 +4,22 @@ import { go, app } from '../ui.js';
 import { SKILLS } from '../../data/skills.js';
 import { profile } from '../../game/playerProfile.js';
 import { sfx } from '../../game/audio.js';
+import { haptic } from '../../game/haptics.js';
+
+const GRADES = [
+  [0.95, 'S', '#ffc53d'],
+  [0.85, 'A', '#34f5c5'],
+  [0.7, 'B', '#2ee6ff'],
+  [0.55, 'C', '#b07bff'],
+  [0, 'D', '#ff5470'],
+];
 
 export function resultsScreen({ summary }) {
   const sm = summary;
   const scoreEl = h('b.res-score', '0');
   const acc = Math.round(sm.accuracy * 100);
+  const [, grade, gradeColor] = GRADES.find(([min]) => sm.accuracy >= min);
+  const stamp = h('div.grade-stamp', { '--c': gradeColor }, h('small', t('res.grade')), h('b', grade));
 
   const stat = (label, value, cls = '') => h(`div.res-stat${cls ? '.' + cls : ''}`, h('small', label), h('b', value));
 
@@ -46,7 +57,7 @@ export function resultsScreen({ summary }) {
     h(
       'div.res-hero',
       h('small', isDaily ? t('res.dailyScore') : t('res.score')),
-      scoreEl,
+      h('div.res-score-row', scoreEl, sm.challenges ? stamp : null),
       sm.isRecord ? h('div.badge.badge-record', t('res.record')) : sm.prevBest ? h('div.res-prev', t('res.prevBest', { n: sm.prevBest.toLocaleString() })) : null,
     ),
     h(
@@ -73,6 +84,12 @@ export function resultsScreen({ summary }) {
     el,
     onShow: () => {
       countUp(scoreEl, sm.score, { duration: 1400 });
+      setTimeout(() => {
+        stamp.classList.add('is-in');
+        sfx('stamp');
+        haptic('heavy');
+        if (grade === 'S' || grade === 'A') app.background?.confetti(grade === 'S' ? 160 : 90);
+      }, 1450);
       if (sm.isRecord) {
         setTimeout(() => {
           sfx('perfect');

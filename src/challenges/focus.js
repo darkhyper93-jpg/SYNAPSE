@@ -102,6 +102,11 @@ export class FocusChallenge extends Challenge {
       const it = p.items[current.idx];
       const rt = now() - current.t0;
       center.classList.add(it.respond ? 'is-hit' : 'is-bad');
+      if (it.respond) {
+        const ring = h('span.hit-wave');
+        arena.append(ring);
+        setTimeout(() => ring.remove(), 600);
+      }
       this.recordTrial({
         correct: it.respond,
         rt: it.respond ? rt : null,

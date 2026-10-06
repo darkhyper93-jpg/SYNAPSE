@@ -99,7 +99,8 @@ export class TraceChallenge extends Challenge {
     this.stage.append(wrap);
     const ctx = canvas.getContext('2d');
     const dpr = Math.min(2, window.devicePixelRatio || 1);
-    const cssW = Math.min(this.stage.clientWidth || 600, 680);
+    const avail = this.hooks?.available?.() || { w: 600, h: 600 };
+    const cssW = Math.max(240, Math.min(this.stage.clientWidth || avail.w || 600, 680, ((avail.h || 600) - 16) / H));
     const cssH = cssW * H;
     canvas.style.width = `${cssW}px`;
     canvas.style.height = `${cssH}px`;
@@ -108,7 +109,7 @@ export class TraceChallenge extends Challenge {
     const S = canvas.width; // scale: arena width 1 -> pixels
     const rad = R * S;
 
-    const state = { selected: [], reveal: false, labels: false };
+    const state = { selected: [], reveal: false, labels: false, trail: 0 };
     const at = (f) => {
       const out = [];
       for (let i = 0; i < r.n; i++) out.push({ x: r.pos[(f * r.n + i) * 2] * S, y: r.pos[(f * r.n + i) * 2 + 1] * S });
@@ -118,6 +119,23 @@ export class TraceChallenge extends Challenge {
     const draw = (f, { cue = 0, hidden = false } = {}) => {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       if (hidden) return;
+      // Replay of the real trajectories of the targets (after the answer).
+      if (state.trail > 0) {
+        const upto = Math.floor(state.trail * r.endFrame);
+        r.targets.forEach((ti) => {
+          ctx.lineWidth = rad * 0.35;
+          ctx.lineCap = 'round';
+          ctx.lineJoin = 'round';
+          for (let k = 2; k <= upto; k += 2) {
+            const a = k / Math.max(1, upto);
+            ctx.strokeStyle = `rgba(61,255,154,${(0.08 + 0.6 * a).toFixed(3)})`;
+            ctx.beginPath();
+            ctx.moveTo(r.pos[((k - 2) * r.n + ti) * 2] * S, r.pos[((k - 2) * r.n + ti) * 2 + 1] * S);
+            ctx.lineTo(r.pos[(k * r.n + ti) * 2] * S, r.pos[(k * r.n + ti) * 2 + 1] * S);
+            ctx.stroke();
+          }
+        });
+      }
       const pts = at(f);
       pts.forEach((p, i) => {
         const isTarget = r.targets.includes(i);
@@ -203,10 +221,26 @@ export class TraceChallenge extends Challenge {
           canvas.style.cursor = 'default';
           draw(r.endFrame);
         }
-        this.recordTrial({ correct, rt, targetTime: 3500, answerLabel: t('ui.shownOnBoard'), feedback: state.reveal ? 'full' : 'mini' });
+        const rect = canvas.getBoundingClientRect();
+        const bx = rect.left + (final[i].x / canvas.width) * rect.width;
+        const by = rect.top + (final[i].y / canvas.height) * rect.height;
+        const origin = { getBoundingClientRect: () => ({ left: bx, top: by, width: 0, height: 0 }) };
+        this.recordTrial({ correct, rt, targetTime: 3500, answerLabel: t('ui.shownOnBoard'), feedback: state.reveal ? 'full' : 'mini', origin });
         if (state.reveal) {
           this._keyHandler = null;
-          resolve();
+          // Animate the trajectory replay, then continue.
+          const t0 = now();
+          const anim = () => {
+            state.trail = Math.min(1, (now() - t0) / 1100);
+            draw(r.endFrame);
+            if (state.trail < 1) this.frame(anim);
+            else resolve();
+          };
+          if (document.body.classList.contains('reduce-motion')) {
+            state.trail = 1;
+            draw(r.endFrame);
+            resolve();
+          } else this.frame(anim);
         }
       };
       canvas.addEventListener('pointerdown', (e) => {

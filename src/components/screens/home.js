@@ -1,12 +1,13 @@
 import { h } from '../../utils/dom.js';
 import { t } from '../../game/i18n.js';
-import { go, logo } from '../ui.js';
+import { go, logo, app, toast } from '../ui.js';
 import { profile } from '../../game/playerProfile.js';
 import { SKILLS, SKILL_IDS } from '../../data/skills.js';
 import { radarChart } from '../charts.js';
 import { dailyInfo, msToNextDaily } from '../../engine/daily.js';
 import { storage } from '../../game/storage.js';
 import { sfx } from '../../game/audio.js';
+import { haptic } from '../../game/haptics.js';
 
 const MODES = ['quick', 'standard', 'challenge'];
 
@@ -33,6 +34,8 @@ export function homeScreen() {
             b.classList.toggle('is-active', on);
             b.setAttribute('aria-pressed', String(on));
           });
+          placeGlider();
+          bestVal.textContent = (profile.state.best[m] || 0).toLocaleString();
           sfx('tap');
         },
       },
@@ -41,19 +44,39 @@ export function homeScreen() {
     ),
   );
 
+  // PLAY: charges while pressed, then launches with a burst.
+  let launching = false;
   const play = () => {
+    if (launching) return;
+    launching = true;
     sfx('go');
-    go('play', { mode });
+    haptic('heavy');
+    playBtn.classList.add('is-launch');
+    const r = playBtn.getBoundingClientRect();
+    app.background?.burst(r.left + r.width / 2, r.top + r.height / 2, '#b07bff', 60);
+    app.background?.surge('#2ee6ff');
+    setTimeout(() => go('play', { mode, warpColor: 'rgba(46,230,255,.5)' }), document.body.classList.contains('reduce-motion') ? 0 : 260);
   };
 
   const playBtn = h(
     'button.play-btn',
     { type: 'button', onclick: play, 'data-autofocus': true },
+    h('span.play-orbit', h('i'), h('i'), h('i'), h('i')),
     h('span.play-ring'),
     h('span.play-ring.r2'),
     h('span.play-label', t('home.play')),
     h('kbd.key-hint', 'ENTER'),
   );
+  playBtn.addEventListener('pointerdown', () => playBtn.classList.add('is-charging'));
+  ['pointerup', 'pointerleave', 'pointercancel'].forEach((ev) => playBtn.addEventListener(ev, () => playBtn.classList.remove('is-charging')));
+
+  const glider = h('span.chip-glider');
+  const placeGlider = () => {
+    const btn = modeBtns.find((b) => b.dataset.mode === mode);
+    if (!btn || !btn.offsetWidth) return;
+    glider.style.width = `${btn.offsetWidth}px`;
+    glider.style.transform = `translateX(${btn.offsetLeft}px)`;
+  };
 
   const countdown = h('span.daily-timer');
   const fmt = (ms) => {
@@ -73,6 +96,7 @@ export function homeScreen() {
     countdown,
   );
 
+  const bestVal = h('b', (profile.state.best[mode] || 0).toLocaleString());
   const radarVals = SKILL_IDS.map((id) => ({ id, label: t(`skill.${id}.short`), value: profile.rating(id), color: SKILLS[id].color }));
   const snapshot = h(
     'button.snapshot',
@@ -83,14 +107,14 @@ export function homeScreen() {
       h('div.snap-index', h('small', t('home.index')), h('b', played ? String(profile.globalIndex()) : '—')),
       h('div.snap-row', h('span', t('home.sessions')), h('b', String(st.sessions))),
       h('div.snap-row', h('span', t('home.bestStreak')), h('b', String(st.bestStreak))),
-      h('div.snap-row', h('span', t('home.best')), h('b', (profile.state.best[mode] || 0).toLocaleString())),
+      h('div.snap-row', h('span', t('home.best')), bestVal),
     ),
   );
 
   const el = h(
     'main.home',
     h('div.home-hero', logo('lg'), h('p.tagline', t('home.tagline'))),
-    h('div.home-play', playBtn, h('div.mode-chips', { role: 'group', 'aria-label': t('home.mode') }, modeBtns)),
+    h('div.home-play', playBtn, h('div.mode-chips', { role: 'group', 'aria-label': t('home.mode') }, glider, modeBtns)),
     h('div.home-grid', dailyCard, snapshot),
     h(
       'nav.home-nav',
@@ -110,9 +134,20 @@ export function homeScreen() {
   };
   document.addEventListener('keydown', onKey);
 
+  window.addEventListener('resize', placeGlider);
+  let backArmed = 0;
   return {
     el,
+    onShow: () => requestAnimationFrame(() => requestAnimationFrame(placeGlider)),
+    // Android back on the home screen: press twice to exit.
+    onBack: () => {
+      if (Date.now() - backArmed < 2000) return false;
+      backArmed = Date.now();
+      toast(t('home.backExit'), { icon: '↩', duration: 1800 });
+      return true;
+    },
     cleanup: () => {
+      window.removeEventListener('resize', placeGlider);
       clearInterval(timer);
       document.removeEventListener('keydown', onKey);
     },

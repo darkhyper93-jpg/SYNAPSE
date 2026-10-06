@@ -5,6 +5,8 @@ import { settings, applySettings } from '../../game/settings.js';
 import { profile } from '../../game/playerProfile.js';
 import { sfx } from '../../game/audio.js';
 
+const APP_VERSION = '1.0.0';
+
 export function settingsScreen() {
   const s = settings.get();
 
@@ -77,6 +79,7 @@ export function settingsScreen() {
     h('section.set-group', h('h3', t('set.general')),
       segmented('lang', t('set.lang'), [['es', 'Español'], ['en', 'English']], true),
       toggle('sound', t('set.sound'), t('set.soundDesc')),
+      toggle('haptics', t('set.haptics'), t('set.hapticsDesc')),
       h('div.set-row', h('div.set-text', h('b', t('set.volume'))), volume),
     ),
     h('section.set-group', h('h3', t('set.visual')),
@@ -91,11 +94,17 @@ export function settingsScreen() {
       segmented('adaptMix', t('set.mix'), [['balanced', t('set.mixBalanced')], ['weakness', t('set.mixWeak')], ['strength', t('set.mixStrong')]]),
       h('p.set-help', t('set.mixDesc')),
     ),
+    h('section.set-group', h('h3', t('set.help')),
+      h('div.set-row', h('div.set-text', h('b', t('set.tutorial')), h('small', t('set.tutorialDesc'))), h('button.btn.btn-ghost', { type: 'button', onclick: () => go('onboarding') }, t('set.tutorialBtn'))),
+    ),
     h('section.set-group', h('h3', t('set.data')),
       h('p.set-help', t('set.dataDesc')),
       h('button.btn.btn-danger', { type: 'button', onclick: reset }, t('set.reset')),
     ),
-    h('section.set-group.about', h('h3', t('set.about')), h('p', { html: t('set.aboutBody') })),
+    h('section.set-group.about', h('h3', t('set.about')), h('p', { html: t('set.aboutBody') }),
+      h('div.set-row', h('div.set-text', h('b', t('set.privacy')), h('small', t('set.privacyDesc'))), h('button.btn.btn-ghost', { type: 'button', onclick: () => (location.href = 'privacy.html') }, t('set.privacyBtn'))),
+      h('p.set-help', `SYNAPSE v${APP_VERSION}`),
+    ),
   );
 
   const onKey = (e) => {

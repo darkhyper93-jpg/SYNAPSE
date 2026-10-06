@@ -200,10 +200,17 @@ export class EchoChallenge extends Challenge {
     const { index, rt, el } = await result;
     const correct = index === r.target.cell;
     cells.forEach((c) => (c.disabled = true));
+    // Ghost-reveal the whole scene so the player sees what was there.
+    r.items.forEach((it) => {
+      if (it.cell !== r.target.cell) {
+        cells[it.cell].innerHTML = sym(it, this.settings);
+        cells[it.cell].classList.add('is-ghost');
+      }
+    });
     cells[r.target.cell].innerHTML = sym(r.target, this.settings);
-    cells[r.target.cell].classList.add('is-correct');
+    cells[r.target.cell].classList.add('is-correct', 'is-pop');
     if (!correct) el.classList.add('is-wrong');
-    this.recordTrial({ correct, rt, answerLabel: t('ui.shownOnBoard') });
+    this.recordTrial({ correct, rt, answerLabel: t('ui.shownOnBoard'), origin: el });
   }
 
   async play_color(r) {
@@ -253,8 +260,10 @@ export class EchoChallenge extends Challenge {
       const { cells } = multiClickBoard(this, r.rows, r.cols, (i, btn) => {
         if (pos >= r.seq.length) return;
         const ok = r.seq[pos] === i;
-        btn.classList.add(ok ? 'is-hit' : 'is-wrong');
+        btn.classList.add(ok ? 'is-hit' : 'is-wrong', 'is-pop');
         btn.textContent = String(pos + 1);
+        this.hooks?.sound?.(ok ? 'tap' : 'wrong');
+        this.hooks?.haptic?.(ok ? 'tick' : 'error');
         pos++;
         if (!ok || pos === r.seq.length) {
           cells.forEach((c) => (c.disabled = true));
@@ -265,6 +274,7 @@ export class EchoChallenge extends Challenge {
             targetTime: r.seq.length * 800,
             answerLabel: t('ui.shownOnBoard'),
             weight: 1 + (r.seq.length >= 6 ? 0.5 : 0),
+            origin: btn,
           });
           resolve();
         }
@@ -287,6 +297,7 @@ export class EchoChallenge extends Challenge {
     const bItem = r.after.find((i) => i.cell === r.changedCell);
     cells[r.changedCell].innerHTML = `<span class="diff-pair">${a ? sym(a, this.settings) : '<i>∅</i>'}<b>→</b>${bItem ? sym(bItem, this.settings) : '<i>∅</i>'}</span>`;
     if (!correct) el.classList.add('is-wrong');
-    this.recordTrial({ correct, rt, targetTime: 3200, answerLabel: t(`echo.kind.${r.kind}`) });
+    cells[r.changedCell].classList.add('is-pop');
+    this.recordTrial({ correct, rt, targetTime: 3200, answerLabel: t(`echo.kind.${r.kind}`), origin: el });
   }
 }

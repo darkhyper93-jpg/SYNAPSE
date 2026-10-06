@@ -46,7 +46,23 @@ const SOUNDS = {
   perfect: () => [523, 659, 784, 1047].forEach((f, i) => tone({ freq: f, type: 'triangle', dur: 0.16, gain: 0.12, delay: i * 0.07 })),
   end: () => [392, 523, 659, 784, 1047].forEach((f, i) => tone({ freq: f, type: 'sine', dur: 0.3, gain: 0.12, delay: i * 0.09 })),
   levelup: () => [659, 880, 1175].forEach((f, i) => tone({ freq: f, type: 'triangle', dur: 0.22, gain: 0.12, delay: i * 0.1 })),
+  star: () => tone({ freq: 1046, to: 1568, type: 'triangle', dur: 0.14, gain: 0.12 }),
+  combo: () => {
+    tone({ freq: 784, to: 1175, type: 'square', dur: 0.08, gain: 0.05 });
+    tone({ freq: 1175, to: 1568, type: 'triangle', dur: 0.12, gain: 0.1, delay: 0.06 });
+  },
+  whoosh: () => tone({ freq: 300, to: 900, type: 'sine', dur: 0.16, gain: 0.05 }),
+  count: () => tone({ freq: 660, type: 'sine', dur: 0.09, gain: 0.1 }),
+  stamp: () => {
+    tone({ freq: 120, to: 60, type: 'sine', dur: 0.25, gain: 0.3 });
+    tone({ freq: 1568, type: 'triangle', dur: 0.12, gain: 0.08, delay: 0.05 });
+  },
 };
+
+/** Called when the app goes to background / comes back. */
+export function suspendAudio() {
+  if (ctx && ctx.state === 'running') ctx.suspend().catch(() => {});
+}
 
 export function sfx(name) {
   if (!settings.get().sound) return;

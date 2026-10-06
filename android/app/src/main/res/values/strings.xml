@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">SYNAPSE</string>
+    <string name="title_activity_main">SYNAPSE</string>
+    <string name="package_name">com.darkhyper93.synapse</string>
+    <string name="custom_url_scheme">com.darkhyper93.synapse</string>
+</resources>

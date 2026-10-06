@@ -83,8 +83,14 @@ export class SparkChallenge extends Challenge {
       }
       const onTarget = !active.decoy && i === active.cell;
       active.resolved = true;
-      if (onTarget) nodes[i].classList.add('is-hit');
-      else nodes[i].classList.add('is-bad');
+      if (onTarget) {
+        nodes[i].classList.add('is-hit');
+        const ring = h('span.spark-burst');
+        nodes[i].append(ring);
+        setTimeout(() => ring.remove(), 500);
+        const r = nodes[i].getBoundingClientRect();
+        this.hooks?.burst?.(r.left + r.width / 2, r.top + r.height / 2, '#2ee6ff', 14);
+      } else nodes[i].classList.add('is-bad');
       this.recordTrial({ correct: onTarget, rt: onTarget ? rt : null, feedback: 'mini', answerLabel: active.decoy ? t('spark.decoy') : t('spark.wrongNode') });
       resolveEvent?.();
     };

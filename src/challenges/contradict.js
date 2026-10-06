@@ -256,32 +256,47 @@ export class ContradictChallenge extends Challenge {
     this.setPrompt(t('logic.map'));
     const box = h('div.rule-box');
     r.pairs.forEach(([x, y], i) => box.append(h('div.pair', { '--i': i }, h('b', String(x)), h('span.arrow', '→'), h('b', String(y)))));
-    box.append(h('div.pair.is-query', h('b', String(r.q)), h('span.arrow', '→'), h('b.q', '?')));
+    const q = h('b.q', '?');
+    box.append(h('div.pair.is-query', h('b', String(r.q)), h('span.arrow', '→'), q));
     this.stage.append(box);
-    await this.askOptions({ options: this.numOpts(r.options), correctValue: r.answer, timeLimit: this.timeLimit(), trial: { explanation: t('logic.rule', { rule: r.text }) } });
+    const res = await this.askOptions({ options: this.numOpts(r.options), correctValue: r.answer, timeLimit: this.timeLimit(), trial: { explanation: t('logic.rule', { rule: r.text }) } });
+    this.reveal(q, String(r.answer), res.correct);
   }
 
   async play_seq(r) {
     this.setPrompt(t('logic.seq'));
     const box = h('div.seq-box');
     r.terms.forEach((v, i) => box.append(h('span.term', { '--i': i }, String(v))));
-    box.append(h('span.term.is-query', '?'));
+    const q = h('span.term.is-query', '?');
+    box.append(q);
     this.stage.append(box);
-    await this.askOptions({ options: this.numOpts(r.options), correctValue: r.answer, timeLimit: this.timeLimit(), trial: { explanation: t('logic.rule', { rule: r.text }) } });
+    const res = await this.askOptions({ options: this.numOpts(r.options), correctValue: r.answer, timeLimit: this.timeLimit(), trial: { explanation: t('logic.rule', { rule: r.text }) } });
+    this.reveal(q, String(r.answer), res.correct);
   }
 
   async play_visual(r) {
     this.setPrompt(t('logic.visual'));
     const box = h('div.seq-box.is-visual');
     r.shown.forEach((it, i) => box.append(h('span.term', { '--i': i, html: sym(it, this.settings, { rotate: it.rot }) })));
-    box.append(h('span.term.is-query', '?'));
+    const q = h('span.term.is-query', '?');
+    box.append(q);
     this.stage.append(box);
-    await this.askOptions({
+    const res = await this.askOptions({
       options: r.options.map((it) => ({ value: r.key(it), label: `${t(`color.${it.color}`)} ${t(`shape.${it.shape}`)}${it.rot ? ` ${it.rot}°` : ''}`, html: sym(it, this.settings, { rotate: it.rot }) })),
       correctValue: r.key(r.answer),
       timeLimit: this.timeLimit(),
       trial: { explanation: t(r.textKey, { a: r.periods[0], b: r.periods[1], c: r.periods[2] }) },
     });
+    this.reveal(q, sym(r.answer, this.settings, { rotate: r.answer.rot }), res.correct, true);
+  }
+
+  /** Card-flip the "?" to show the right answer. */
+  reveal(el, content, correct, isHtml = false) {
+    el.classList.add('is-flip', correct ? 'is-ok' : 'is-bad');
+    setTimeout(() => {
+      if (isHtml) el.innerHTML = content;
+      else el.textContent = content;
+    }, 160);
   }
 
   async play_anomaly(r) {

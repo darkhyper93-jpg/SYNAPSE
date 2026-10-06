@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <!-- Base application theme: dark, so there is never a white flash. -->
+    <style name="AppTheme" parent="Theme.AppCompat.DayNight.DarkActionBar">
+        <item name="colorPrimary">@color/synapse_bg</item>
+        <item name="colorPrimaryDark">@color/synapse_bg</item>
+        <item name="colorAccent">@color/synapse_accent</item>
+        <item name="android:windowBackground">@color/synapse_bg</item>
+    </style>
+
+    <style name="AppTheme.NoActionBar" parent="Theme.AppCompat.DayNight.NoActionBar">
+        <item name="windowActionBar">false</item>
+        <item name="windowNoTitle">true</item>
+        <item name="android:background">@null</item>
+        <item name="android:windowBackground">@color/synapse_bg</item>
+        <item name="android:statusBarColor">@color/synapse_bg</item>
+        <item name="android:navigationBarColor">@color/synapse_bg</item>
+    </style>
+
+    <!-- Launch / splash (Android 12+ SplashScreen API + legacy image). -->
+    <style name="AppTheme.NoActionBarLaunch" parent="Theme.SplashScreen">
+        <item name="android:background">@drawable/splash</item>
+        <item name="windowSplashScreenBackground">@color/synapse_bg</item>
+        <item name="windowSplashScreenAnimatedIcon">@mipmap/ic_launcher_foreground</item>
+        <item name="postSplashScreenTheme">@style/AppTheme.NoActionBar</item>
+    </style>
+</resources>

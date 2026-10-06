@@ -1,38 +1,52 @@
-// Play screen: runs a session (intro → challenge → feedback → summary → … → results).
+// Play screen: runs a session (intro → countdown → challenge → feedback → summary → … → results).
 import { h, now, countUp } from '../../utils/dom.js';
 import { t } from '../../game/i18n.js';
-import { go, app, toast } from '../ui.js';
+import { go, app } from '../ui.js';
 import { profile } from '../../game/playerProfile.js';
 import { settings } from '../../game/settings.js';
 import { SessionManager } from '../../engine/sessionManager.js';
+import { streakMultiplier } from '../../engine/scoreSystem.js';
 import { SKILLS, masteryFor } from '../../data/skills.js';
 import { sfx } from '../../game/audio.js';
+import { haptic } from '../../game/haptics.js';
+import { flyPoints, comboText, countdown, celebrate, starRating, starsFor } from '../fx.js';
+import { demoFor } from '../demos.js';
 
-const STREAK_MILESTONES = [5, 10, 15, 20, 25, 30, 40, 50, 75, 100];
+// Combo words appear when the streak crosses these values (discrete questions only).
+const COMBOS = [
+  [3, 'combo.nice'],
+  [5, 'combo.great'],
+  [8, 'combo.awesome'],
+  [12, 'combo.amazing'],
+  [16, 'combo.unstoppable'],
+  [20, 'combo.legendary'],
+];
 
 export function playScreen({ mode = 'quick', typeId, difficulty } = {}) {
   const s = settings.get();
   const session = new SessionManager({ mode, profile, settings: s, typeId, difficulty }).startSession();
   let alive = true;
-  let active = null; // running challenge
+  let active = null; // running challenge plan
   let abort = null; // resolves the current wait when pausing
   let waitingReady = null; // resolve fn for intro / summary
   let paused = false;
   let challengeStart = 0;
+  let firstRun = true;
 
   // ---------- layout ----------
   const scoreEl = h('b.hud-score-val', '0');
   const streakEl = h('b', '0');
+  const multEl = h('em.hud-mult');
   const bestEl = h('small', `${t('hud.best')} ${profile.state.stats.bestStreak}`);
   const sessionFill = h('i');
   const sessionLabel = h('span.hud-progress-label');
-  const quitBtn = h('button.icon-btn', { type: 'button', 'aria-label': t('hud.pause'), onclick: () => pause() }, '❚❚');
+  const quitBtn = h('button.icon-btn.pause-btn', { type: 'button', 'aria-label': t('hud.pause'), onclick: () => pause() }, h('span', '❚❚'));
   const hud = h(
     'header.hud',
     quitBtn,
     h('div.hud-mode', t(`mode.${mode}`)),
     h('div.hud-progress', h('div.hud-bar', sessionFill), sessionLabel),
-    h('div.hud-streak', h('span.flame', { html: flameSVG() }), h('div', streakEl, bestEl)),
+    h('div.hud-streak', h('span.flame', { html: flameSVG() }), h('div', h('div.hud-streak-row', streakEl, multEl), bestEl)),
     h('div.hud-score', h('small', t('hud.score')), scoreEl),
   );
   const skillChip = h('span.skill-chip');
@@ -41,10 +55,35 @@ export function playScreen({ mode = 'quick', typeId, difficulty } = {}) {
   const head = h('div.ch-head', skillChip, chName, dots);
   const prompt = h('div.prompt', { 'aria-live': 'polite' });
   const stage = h('div.stage');
+  const stageWrap = h('div.stage-wrap', stage);
   const fx = h('div.fx-layer');
   const overlay = h('div.play-overlay');
-  const el = h('main.play', hud, h('section.arena', head, prompt, stage, fx), overlay);
+  const el = h('main.play', hud, h('section.arena', head, prompt, stageWrap, fx), overlay);
   el.dataset.mode = mode;
+
+  // ---------- fit-to-screen: never scroll during a challenge ----------
+  // Shrinks content on small phones, enlarges it on tablets (never canvases: they size themselves).
+  // Uses a transform so the layout itself never changes (hit-testing follows transforms).
+  const fit = () => {
+    stage.style.transform = '';
+    const availH = stageWrap.clientHeight;
+    const availW = stageWrap.clientWidth;
+    const needH = stage.scrollHeight;
+    if (!availH || !needH || !stage.children.length) return;
+    let needW = 0;
+    for (const c of stage.children) needW = Math.max(needW, c.offsetWidth);
+    const big = Math.min(window.innerWidth, window.innerHeight) >= 700;
+    const maxZ = big && !stage.querySelector('canvas') ? 1.45 : 1;
+    let z = (availH - 6) / needH;
+    if (needW && needW < availW) z = Math.min(z, (availW - 24) / needW);
+    z = Math.max(0.58, Math.min(maxZ, z));
+    const dy = big ? Math.max(0, (availH - needH * z) / 2.4) : 0;
+    if (Math.abs(z - 1) < 0.03 && dy < 4) return;
+    stage.style.transform = `translateY(${dy.toFixed(1)}px) scale(${z.toFixed(3)})`;
+  };
+  const fitObserver = new MutationObserver(fit);
+  fitObserver.observe(stage, { childList: true });
+  window.addEventListener('resize', fit);
 
   // ---------- HUD ----------
   const updateProgress = () => {
@@ -64,17 +103,33 @@ export function playScreen({ mode = 'quick', typeId, difficulty } = {}) {
 
   let shownScore = 0;
   const setScore = () => {
+    if (shownScore === session.score) return;
     countUp(scoreEl, session.score, { from: shownScore, duration: 450 });
     shownScore = session.score;
+    scoreEl.classList.remove('bump');
+    void scoreEl.offsetWidth;
+    scoreEl.classList.add('bump');
   };
   const setStreak = () => {
-    streakEl.textContent = String(session.streak);
-    hud.classList.toggle('is-hot', session.streak >= 5);
+    const st = session.streak;
+    streakEl.textContent = String(st);
+    hud.classList.toggle('is-hot', st >= 3);
+    hud.style.setProperty('--heat', Math.min(1, st / 20).toFixed(2));
+    const m = streakMultiplier(st);
+    multEl.textContent = st >= 3 ? `×${m.toFixed(2)}` : '';
     bestEl.textContent = `${t('hud.best')} ${Math.max(profile.state.stats.bestStreak, session.bestStreak)}`;
+    streakEl.classList.remove('bump');
+    void streakEl.offsetWidth;
+    streakEl.classList.add('bump');
   };
 
   // ---------- feedback ----------
   let fbTimer = null;
+  const originPoint = (trial) => {
+    const o = trial.origin;
+    const r = (o && o.getBoundingClientRect ? o.getBoundingClientRect() : null) || stage.getBoundingClientRect();
+    return { x: r.left + r.width / 2, y: r.top + Math.min(r.height / 2, 260) };
+  };
   const showFeedback = (trial, pts) => {
     if (trial.feedback === 'none') return;
     const color = SKILLS[active?.skill]?.color || '#2ee6ff';
@@ -85,6 +140,8 @@ export function playScreen({ mode = 'quick', typeId, difficulty } = {}) {
       stage.classList.remove('flash-ok', 'flash-bad');
       void stage.offsetWidth;
       stage.classList.add(trial.correct ? 'flash-ok' : 'flash-bad');
+      haptic(trial.correct ? 'tick' : 'medium');
+      setScore();
       return;
     }
     clearTimeout(fbTimer);
@@ -105,12 +162,17 @@ export function playScreen({ mode = 'quick', typeId, difficulty } = {}) {
       setTimeout(() => card.remove(), 300);
     }, trial.explanation ? 2000 : 1300);
     if (trial.correct) {
-      const r = stage.getBoundingClientRect();
-      app.background?.burst(r.left + r.width / 2, r.top + Math.min(r.height / 2, 260), color, 30);
-    } else if (!s.reducedMotion) {
-      stage.classList.remove('shake');
-      void stage.offsetWidth;
-      stage.classList.add('shake');
+      const p = originPoint(trial);
+      app.background?.burst(p.x, p.y, color, 30);
+      haptic('light');
+      flyPoints(p, scoreEl, `+${pts}`, color).then(setScore);
+    } else {
+      haptic('error');
+      if (!s.reducedMotion) {
+        stage.classList.remove('shake');
+        void stage.offsetWidth;
+        stage.classList.add('shake');
+      }
     }
   };
 
@@ -120,18 +182,26 @@ export function playScreen({ mode = 'quick', typeId, difficulty } = {}) {
       const pts = session.onTrial(trial, ch);
       if (trial.feedback !== 'none') sfx(trial.correct ? (trial.feedback === 'mini' ? 'tap' : 'correct') : 'wrong');
       showFeedback(trial, pts);
-      setScore();
       setStreak();
-      if (session.streak > prevStreak && STREAK_MILESTONES.includes(session.streak)) {
-        toast(t('fb.streak', { n: session.streak }), { color: '#ffb02e', icon: '🔥', duration: 1600 });
-        app.background?.surge('#ffb02e');
+      if (trial.feedback === 'full' && session.streak > prevStreak) {
+        const st = session.streak;
+        const hit = COMBOS.find(([n]) => n === st) || (st > 20 && st % 5 === 0 ? [st, 'combo.legendary'] : null);
+        if (hit) {
+          setTimeout(() => {
+            if (!alive) return;
+            comboText(fx, t(hit[1]), st >= 12 ? '#ff4fd8' : st >= 8 ? '#ffc53d' : '#34f5c5');
+            sfx('combo');
+            haptic('medium');
+            if (st >= 8) app.background?.surge('#ffb02e');
+          }, 250);
+        }
       }
       return pts;
     },
     setPrompt: (html) => {
       prompt.innerHTML = `<span>${html}</span>`;
       // A new phase begins: never let old feedback cover the next stimulus.
-      fx.querySelectorAll('.feedback').forEach((n) => {
+      fx.querySelectorAll('.feedback, .combo-text').forEach((n) => {
         n.classList.add('is-out');
         setTimeout(() => n.remove(), 250);
       });
@@ -146,6 +216,9 @@ export function playScreen({ mode = 'quick', typeId, difficulty } = {}) {
       else [...dots.children].forEach((d, k) => d.classList.toggle('is-done', k < i));
     },
     sound: (name) => sfx(name),
+    haptic: (kind) => haptic(kind),
+    burst: (x, y, color, n) => app.background?.burst(x, y, color, n),
+    available: () => ({ w: stageWrap.clientWidth, h: stageWrap.clientHeight }),
   };
 
   // ---------- input ----------
@@ -172,10 +245,10 @@ export function playScreen({ mode = 'quick', typeId, difficulty } = {}) {
   };
   document.addEventListener('keydown', onKey);
 
-  const onVisibility = () => {
-    if (document.hidden && active && !paused) pause();
+  // The app went to background (home button, call, screen off): pause immediately.
+  app.onAppPause = () => {
+    if (alive && !paused) pause();
   };
-  document.addEventListener('visibilitychange', onVisibility);
 
   // ---------- overlays ----------
   const clearOverlay = () => {
@@ -221,6 +294,7 @@ export function playScreen({ mode = 'quick', typeId, difficulty } = {}) {
       h('div.intro-skill', h('i'), t(`skill.${plan.skill}`), meta.secondary ? h('span.intro-plus', `+ ${t(`skill.${meta.secondary}`)}`) : null),
       h('h2.intro-name', { 'data-text': t(`ch.${meta.id}.name`) }, t(`ch.${meta.id}.name`)),
       h('p.intro-tag', t(`ch.${meta.id}.tag`)),
+      compact ? null : demoFor(meta.id),
       compact ? null : h('p.intro-how', { html: t(`ch.${meta.id}.how`) }),
       compact ? null : h('p.intro-controls', { html: t(`ch.${meta.id}.controls`) }),
       h(
@@ -234,12 +308,41 @@ export function playScreen({ mode = 'quick', typeId, difficulty } = {}) {
     );
     overlay.append(card);
     overlay.classList.add('is-on');
-    setTimeout(() => readyBtn.focus({ preventScroll: true }), 50);
+    if (!document.body.classList.contains('is-touch')) setTimeout(() => readyBtn.focus({ preventScroll: true }), 50);
     const ok = await waitReady(compact ? 2600 : 0);
     if (!ok) return false;
+    card.classList.add('is-out');
+    sfx('whoosh');
+    await new Promise((r) => setTimeout(r, 220));
     clearOverlay();
-    sfx('go');
     return true;
+  }
+
+  async function celebrations(sum) {
+    for (const ev of sum.newEvents) {
+      if (!alive || paused) return;
+      if (ev.type === 'levelup') {
+        const lvl = masteryFor(profile.rating(ev.skill));
+        await celebrate({
+          kicker: t('cel.levelUp'),
+          title: t(`skill.${ev.skill}`),
+          subtitle: t('cel.levelSub', { n: lvl.level, name: t(`mastery.${lvl.key}`) }),
+          color: SKILLS[ev.skill].color,
+          icon: '▲',
+        });
+      } else if (ev.type === 'unlock') {
+        await celebrate({
+          kicker: t('cel.unlock'),
+          title: t(`ch.${ev.typeId}.name`),
+          subtitle: t(`ch.${ev.typeId}.tag`),
+          color: '#ffffff',
+          icon: '✦',
+          extra: demoFor(ev.typeId),
+          duration: 3400,
+          sound: 'perfect',
+        });
+      }
+    }
   }
 
   async function summaryCard(sum) {
@@ -247,10 +350,17 @@ export function playScreen({ mode = 'quick', typeId, difficulty } = {}) {
     const acc = Math.round(sum.accuracy * 100);
     const dDiff = Math.round((sum.diffAfter - sum.diffBefore) * 100);
     const arrow = dDiff > 0 ? '▲' : dDiff < 0 ? '▼' : '◆';
+    const stars = starsFor(sum.accuracy);
+    const ts = profile.typeStats(sum.type);
+    const newBest = (ts.bestStars || 0) > 0 && stars > ts.bestStars;
+    ts.bestStars = Math.max(ts.bestStars || 0, stars);
+    profile.save();
+    const rating = starRating(stars);
     const card = h(
       'div.summary-card',
       { '--c': skill.color },
       h('div.sum-title', t(`ch.${sum.type}.name`), h('span', t('play.complete'))),
+      rating,
       h(
         'div.sum-row',
         h('div.sum-ring', { '--p': acc, html: `<svg viewBox="0 0 36 36"><circle cx="18" cy="18" r="15.9" class="ring-bg"/><circle cx="18" cy="18" r="15.9" class="ring-fg" style="stroke-dasharray:${acc} 100"/></svg><b>${acc}%</b>` }),
@@ -258,6 +368,7 @@ export function playScreen({ mode = 'quick', typeId, difficulty } = {}) {
           'div.sum-info',
           h('div.sum-pts', `+${sum.points.toLocaleString()}`),
           sum.perfect ? h('div.badge.badge-perfect', t('play.perfect', { bonus: sum.bonus })) : sum.bonus ? h('div.badge', t('play.bonus', { bonus: sum.bonus })) : null,
+          newBest && stars ? h('div.badge.badge-new', t('play.newStars')) : null,
           session.mode.adapt !== 'none'
             ? h('div.sum-diff', h('span', t(`skill.${sum.skill}`)), h('b', { class: dDiff > 0 ? 'up' : dDiff < 0 ? 'down' : '' }, `${arrow} ${Math.round(sum.diffAfter * 100)}`))
             : null,
@@ -269,18 +380,16 @@ export function playScreen({ mode = 'quick', typeId, difficulty } = {}) {
     );
     overlay.append(card);
     overlay.classList.add('is-on');
-    if (sum.perfect) sfx('perfect');
-    for (const ev of sum.newEvents) {
-      if (ev.type === 'levelup') {
-        toast(t('play.levelUp', { skill: t(`skill.${ev.skill}`), level: t(`mastery.${masteryFor(profile.rating(ev.skill)).key}`) }), { color: SKILLS[ev.skill].color, icon: '▲', duration: 3200 });
-        sfx('levelup');
-        app.background?.surge(SKILLS[ev.skill].color);
-      } else if (ev.type === 'unlock') {
-        toast(t('play.unlocked', { name: t(`ch.${ev.typeId}.name`) }), { color: '#ffffff', icon: '✦', duration: 3600 });
-      }
+    rating.play();
+    if (sum.perfect) {
+      sfx('perfect');
+      haptic('success');
+      const r = card.getBoundingClientRect();
+      app.background?.burst(r.left + r.width / 2, r.top + 60, skill.color, 50);
     }
-    const ok = await waitReady(2800);
-    clearOverlay();
+    const ok = await waitReady(3200);
+    // If the game was paused meanwhile, the pause menu now owns the overlay.
+    if (ok) clearOverlay();
     return ok;
   }
 
@@ -294,6 +403,7 @@ export function playScreen({ mode = 'quick', typeId, difficulty } = {}) {
     }
     abort?.();
     abort = null;
+    el.classList.remove('is-running');
     app.background?.setMode(s.background === 'off' ? 'off' : 'calm');
     clearOverlay();
     const canEnd = session.history.length > 0;
@@ -301,13 +411,14 @@ export function playScreen({ mode = 'quick', typeId, difficulty } = {}) {
       'div.pause-card',
       h('h2', t('pause.title')),
       h('p', t('pause.body')),
-      h('button.btn.btn-primary', { type: 'button', onclick: resume, 'data-autofocus': true }, t('pause.resume')),
+      h('button.btn.btn-primary', { type: 'button', onclick: resume }, t('pause.resume')),
       canEnd ? h('button.btn.btn-ghost', { type: 'button', onclick: () => endSession() }, t('pause.end')) : null,
       h('button.btn.btn-ghost.btn-danger-text', { type: 'button', onclick: () => quit() }, t('pause.quit')),
     );
     overlay.append(menu);
     overlay.classList.add('is-on', 'is-pause');
-    setTimeout(() => menu.querySelector('button')?.focus(), 40);
+    haptic('medium');
+    if (!document.body.classList.contains('is-touch')) setTimeout(() => menu.querySelector('button')?.focus(), 40);
   }
 
   let loopResume = null;
@@ -333,14 +444,19 @@ export function playScreen({ mode = 'quick', typeId, difficulty } = {}) {
     stage.innerHTML = '';
     document.activeElement?.blur?.();
     app.background?.setMode(s.background === 'off' ? 'off' : 'calm');
+    const abortP = new Promise((r) => (abort = () => r(null)));
+    const go321 = countdown(fx, { full: firstRun && !s.reducedMotion });
+    firstRun = false;
+    if ((await Promise.race([go321.then(() => true), abortP])) === null) return null;
     el.classList.add('is-running');
     challengeStart = now();
-    const abortP = new Promise((r) => (abort = () => r(null)));
     const result = await Promise.race([plan.challenge.start(stage, hooks), abortP]);
     el.classList.remove('is-running');
     challengeStart = 0;
     return result;
   }
+
+  const waitResume = () => new Promise((r) => (loopResume = r));
 
   async function loop() {
     while (alive) {
@@ -351,7 +467,7 @@ export function playScreen({ mode = 'quick', typeId, difficulty } = {}) {
       const ok = await intro(plan);
       if (!alive) return;
       if (!ok) {
-        await new Promise((r) => (loopResume = r));
+        await waitResume();
         if (!alive) return;
         continue;
       }
@@ -359,20 +475,30 @@ export function playScreen({ mode = 'quick', typeId, difficulty } = {}) {
       if (!alive) return;
       if (!result) {
         // paused mid-challenge: discard it, wait for resume, then generate a fresh one
-        await new Promise((r) => (loopResume = r));
+        await waitResume();
         if (!alive) return;
         continue;
       }
       active = null;
       plan.challenge.destroy();
       const sum = session.completeChallenge(plan.challenge, result);
+      stage.classList.add('is-clearing');
+      setTimeout(() => {
+        stage.innerHTML = '';
+        stage.classList.remove('is-clearing');
+        prompt.innerHTML = '';
+      }, 250);
       updateProgress();
       setScore();
       app.background?.setMode(s.background === 'off' ? 'off' : s.background === 'calm' ? 'calm' : 'full');
+      await celebrations(sum);
+      if (!alive) return;
+      if (paused) await waitResume();
+      if (!alive) return;
       const okSum = await summaryCard(sum);
       if (!alive) return;
       if (!okSum) {
-        await new Promise((r) => (loopResume = r));
+        await waitResume();
         if (!alive) return;
       }
     }
@@ -383,7 +509,7 @@ export function playScreen({ mode = 'quick', typeId, difficulty } = {}) {
     alive = false;
     const summary = session.finish();
     sfx('end');
-    go('results', { summary });
+    go('results', { summary, warpColor: 'rgba(255,197,61,.45)' });
   }
 
   return {
@@ -391,14 +517,22 @@ export function playScreen({ mode = 'quick', typeId, difficulty } = {}) {
     onShow: () => {
       setTimeout(loop, 250);
     },
+    // Android back: pause the game, or resume if already paused.
+    onBack: () => {
+      if (paused) resume();
+      else pause();
+      return true;
+    },
     cleanup: () => {
       alive = false;
       active?.challenge.destroy();
       abort?.();
+      app.onAppPause = null;
+      fitObserver.disconnect();
+      window.removeEventListener('resize', fit);
       clearInterval(progressTimer);
       clearTimeout(fbTimer);
       document.removeEventListener('keydown', onKey);
-      document.removeEventListener('visibilitychange', onVisibility);
       app.background?.setMode(s.background || 'full');
     },
   };

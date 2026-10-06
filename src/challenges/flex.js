@@ -92,6 +92,8 @@ export class FlexChallenge extends Challenge {
       const correct = side === tr.side;
       const rt = now() - current.t0;
       (side === 'left' ? left : right).classList.add(correct ? 'is-hit' : 'is-bad');
+      // The symbol flies toward the chosen side.
+      stim.classList.add(side === 'left' ? 'fly-left' : 'fly-right', correct ? 'is-ok' : 'is-bad');
       const forgiving = !correct && postSwitch;
       this.recordTrial({
         correct,
@@ -105,6 +107,28 @@ export class FlexChallenge extends Challenge {
     };
     left.addEventListener('pointerdown', (e) => { e.preventDefault(); answer('left'); });
     right.addEventListener('pointerdown', (e) => { e.preventDefault(); answer('right'); });
+    // Swipe anywhere on the frame: ← / →
+    let swipe = null;
+    frame.addEventListener('pointerdown', (e) => {
+      swipe = { x: e.clientX, y: e.clientY };
+      frame.setPointerCapture?.(e.pointerId);
+    });
+    frame.addEventListener('pointermove', (e) => {
+      if (!swipe) return;
+      const dx = e.clientX - swipe.x;
+      stim.style.transform = `translateX(${Math.max(-60, Math.min(60, dx * 0.5))}px) rotate(${dx * 0.05}deg)`;
+      if (Math.abs(dx) > 46 && Math.abs(dx) > Math.abs(e.clientY - swipe.y)) {
+        swipe = null;
+        stim.style.transform = '';
+        answer(dx < 0 ? 'left' : 'right');
+      }
+    });
+    const endSwipe = () => {
+      swipe = null;
+      stim.style.transform = '';
+    };
+    frame.addEventListener('pointerup', endSwipe);
+    frame.addEventListener('pointercancel', endSwipe);
     this._keyHandler = (input) => {
       if (input.type !== 'key') return;
       const k = String(input.key).toLowerCase();
@@ -161,7 +185,7 @@ export class FlexChallenge extends Challenge {
       }
       postSwitch = false;
       current = null;
-      stim.classList.remove('is-on');
+      stim.classList.remove('is-on', 'fly-left', 'fly-right', 'is-ok', 'is-bad');
       stim.innerHTML = '';
       left.classList.remove('is-hit', 'is-bad');
       right.classList.remove('is-hit', 'is-bad');

@@ -71,6 +71,11 @@ export class DualChallenge extends Challenge {
       const it = p.items[current.i];
       const ok = it.kind === 'hit';
       cells[it.cell].classList.add(ok ? 'is-hit' : 'is-bad');
+      if (ok) {
+        const ring = h('span.hit-wave');
+        cells[it.cell].append(ring);
+        setTimeout(() => ring.remove(), 600);
+      }
       this.recordTrial({ correct: ok, rt: ok ? now() - current.t0 : null, feedback: 'mini', answerLabel: t('focus.falseAlarm') });
     };
     btn.addEventListener('pointerdown', (e) => { e.preventDefault(); respond(); });

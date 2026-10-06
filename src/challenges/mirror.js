@@ -111,6 +111,35 @@ export class MirrorChallenge extends Challenge {
     return r.options.length === 4 && new Set(r.options.map((o) => serialize(o.g))).size === 4;
   }
 
+  /** Animate the source grid through the asked operations (flip = 3D turn, rotate = spin). */
+  async replay(source, r) {
+    if (!source.animate || document.body.classList.contains('reduce-motion')) return;
+    const steps = { flipH: 'rotateY(180deg)', flipV: 'rotateX(180deg)', rot90: 'rotate(90deg)', rot180: 'rotate(180deg)', rot270: 'rotate(-90deg)' };
+    let acc = '';
+    for (const op of r.transform.split('+')) {
+      if (op === 'swap') {
+        [...source.children].forEach((c) => {
+          if (!c.classList.contains('is-on')) return;
+          const cur = c.style.getPropertyValue('--c').trim();
+          const other = cur === COLORS[r.colors[0]].hex ? COLORS[r.colors[1]].hex : COLORS[r.colors[0]].hex;
+          c.style.transition = 'background .45s, box-shadow .45s';
+          c.style.setProperty('--c', other);
+        });
+        this.hooks?.sound?.('whoosh');
+        await this.wait(550);
+        continue;
+      }
+      const zero = { flipH: 'rotateY(0deg)', flipV: 'rotateX(0deg)' }[op] || 'rotate(0deg)';
+      const from = `${zero} ${acc}`.trim();
+      acc = `${steps[op]} ${acc}`.trim();
+      this.hooks?.sound?.('whoosh');
+      const anim = source.animate([{ transform: from }, { transform: acc }], { duration: 650, easing: 'cubic-bezier(.6,0,.2,1)', fill: 'forwards' });
+      await new Promise((res) => (anim.onfinish = res));
+      if (this.destroyed) return;
+    }
+    source.classList.add('is-match');
+  }
+
   gridEl(g, colors, cls = '') {
     const el = h(`div.mgrid${cls ? '.' + cls : ''}`);
     el.style.setProperty('--n', g.length);
@@ -134,7 +163,8 @@ export class MirrorChallenge extends Challenge {
       const r = this.rounds[i];
       this.clearStage('stage-mirror');
       this.setPrompt(t('mirror.prompt', { op: `<b class="op">${t(`mirror.op.${r.transform}`)}</b>` }));
-      const top = h('div.mirror-top', this.gridEl(r.grid, r.colors, 'is-source'), h('div.mirror-op', { html: opIcon(r.transform) }));
+      const source = this.gridEl(r.grid, r.colors, 'is-source');
+      const top = h('div.mirror-top', h('div.mirror-src', source), h('div.mirror-op', { html: opIcon(r.transform) }));
       this.stage.append(top);
       await this.askOptions({
         options: r.options.map((o, k) => ({ value: k, label: t('ui.option', { n: k + 1 }), html: this.gridEl(o.g, r.colors).outerHTML })),
@@ -143,14 +173,16 @@ export class MirrorChallenge extends Challenge {
         className: 'is-grids',
         trial: { answerLabel: t('ui.optionN', { n: r.correctIndex + 1 }) },
       });
-      await this.wait(1000);
+      // Replay: the source physically transforms into the right answer.
+      await this.replay(source, r);
+      await this.wait(700);
     }
     this.setProgress(this.rounds.length, this.rounds.length);
   }
 }
 
 function opIcon(op) {
-  const icons = { flipH: '⇆', flipV: '⇅', rot90: '↻ 90°', rot180: '↻ 180°', rot270: '↺ 90°', swap: '◐' };
+  const icons = { flipH: '⇆', flipV: '⇅', rot90: '↻ 90°', rot180: '↻ 180°', rot270: '↺ 90°', swap: '<i class="swap-ico"></i>' };
   return op
     .split('+')
     .map((o) => `<span>${icons[o]}</span>`)

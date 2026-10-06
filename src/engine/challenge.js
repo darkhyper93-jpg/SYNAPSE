@@ -210,9 +210,10 @@ export class Challenge {
           targetTime: targetTime || this.meta.targetTime,
           answerLabel: correctOpt?.label,
           timedOut,
+          origin: btn || [...wrap.children].find((b) => b.dataset.value === String(correctValue)),
           ...trial,
         });
-        resolve({ value, correct, rt, timedOut });
+        resolve({ value, correct, rt, timedOut, btn });
       };
 
       options.forEach((o, i) => {

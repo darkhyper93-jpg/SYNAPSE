@@ -12,6 +12,7 @@ export const DEFAULT_SETTINGS = () => ({
   lang: detectLang(),
   sound: true,
   volume: 0.6,
+  haptics: true,
   reducedMotion: prefersReduced(),
   background: 'full', // full | calm | off
   textScale: 1,

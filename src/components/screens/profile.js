@@ -67,7 +67,7 @@ export function profileScreen() {
       return h(
         `${unlocked ? 'button' : 'div'}.ch-item${unlocked ? '' : '.is-locked'}`,
         { '--c': SKILLS[m.skill].color, type: unlocked ? 'button' : null, title: unlocked ? t('profile.practice') : null, onclick: unlocked ? () => go('play', { mode: 'practice', typeId: m.id }) : null },
-        h('b', t(`ch.${m.id}.name`)),
+        h('b', t(`ch.${m.id}.name`), ts?.bestStars ? h('span.ch-stars', '★'.repeat(ts.bestStars) + '☆'.repeat(3 - ts.bestStars)) : null),
         h('span', t(`ch.${m.id}.tag`)),
         unlocked ? h('small', ts?.plays ? t('profile.played', { n: ts.plays }) : t('profile.new'), h('em', ` · ${t('profile.practice')} ▶`)) : h('small', t('profile.lockedReq', { skills: m.unlockSkills.map((s) => t(`skill.${s}`)).join(' + '), n: m.minRating })),
       );

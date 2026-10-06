@@ -1,0 +1,21 @@
+{
+  "appId": "com.darkhyper93.synapse",
+  "appName": "SYNAPSE",
+  "webDir": "www",
+  "backgroundColor": "#05060f",
+  "android": {
+    "backgroundColor": "#05060f",
+    "allowMixedContent": false,
+    "webContentsDebuggingEnabled": false
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchShowDuration": 900,
+      "launchAutoHide": true,
+      "launchFadeOutDuration": 300,
+      "backgroundColor": "#05060f",
+      "showSpinner": false,
+      "androidScaleType": "CENTER_CROP"
+    }
+  }
+}

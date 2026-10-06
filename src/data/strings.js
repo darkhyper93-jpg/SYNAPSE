@@ -187,6 +187,22 @@ const en = {
   'nexus.rowCount': 'How many {color} symbols were in the {row} row?',
   'nexus.row.0': 'top', 'nexus.row.1': 'middle', 'nexus.row.2': 'bottom',
   'nexus.rel.left': 'Which one was further LEFT?', 'nexus.rel.above': 'Which one was HIGHER?',
+  // juice / celebrations
+  'combo.nice': 'NICE!', 'combo.great': 'GREAT!', 'combo.awesome': 'AWESOME!', 'combo.amazing': 'AMAZING!',
+  'combo.unstoppable': 'UNSTOPPABLE!', 'combo.legendary': 'LEGENDARY!',
+  'cel.levelUp': 'LEVEL UP', 'cel.levelSub': 'Level {n} · {name}', 'cel.unlock': 'NEW CHALLENGE UNLOCKED',
+  'play.newStars': 'New best ★', 'res.grade': 'Grade', 'home.backExit': 'Press back again to exit',
+  // settings additions
+  'set.haptics': 'Vibration', 'set.hapticsDesc': 'Subtle haptic feedback on taps, hits and level-ups.',
+  'set.privacy': 'Privacy policy', 'set.privacyDesc': 'No data is collected. Everything stays on your device.', 'set.privacyBtn': 'Read',
+  'set.help': 'Help', 'set.tutorial': 'Tutorial', 'set.tutorialDesc': 'See the introduction again.', 'set.tutorialBtn': 'Watch',
+  // onboarding
+  'onb.skip': 'Skip', 'onb.next': 'Next', 'onb.start': "Let's play",
+  'onb.welcome.title': 'Welcome to SYNAPSE', 'onb.welcome.body': 'Fast, varied challenges for your brain. Every game is different — and it gets to know you.',
+  'onb.skills.title': '8 skills, one profile', 'onb.skills.body': 'Memory, perception, logic, reaction, attention, spatial, decision and flexibility. Your radar takes shape as you play.',
+  'onb.adapt.title': 'It adapts to you', 'onb.adapt.body': 'Too easy? It gets harder. Too hard? It eases off. Always in the sweet spot where you improve.',
+  'onb.short.title': 'Short sessions, real progress', 'onb.short.body': '5 minutes is enough. Play, beat yourself, take a break.',
+  'onb.easy': 'easy', 'onb.hard': 'hard',
 };
 
 const es = {
@@ -352,6 +368,19 @@ const es = {
   'nexus.rowCount': '¿Cuántos símbolos {color} había en la fila {row}?',
   'nexus.row.0': 'superior', 'nexus.row.1': 'central', 'nexus.row.2': 'inferior',
   'nexus.rel.left': '¿Cuál estaba más a la IZQUIERDA?', 'nexus.rel.above': '¿Cuál estaba más ARRIBA?',
+  'combo.nice': '¡BIEN!', 'combo.great': '¡GENIAL!', 'combo.awesome': '¡TREMENDO!', 'combo.amazing': '¡INCREÍBLE!',
+  'combo.unstoppable': '¡IMPARABLE!', 'combo.legendary': '¡LEGENDARIO!',
+  'cel.levelUp': 'SUBES DE NIVEL', 'cel.levelSub': 'Nivel {n} · {name}', 'cel.unlock': 'NUEVO DESAFÍO DESBLOQUEADO',
+  'play.newStars': 'Nuevo récord ★', 'res.grade': 'Nota', 'home.backExit': 'Pulsa atrás otra vez para salir',
+  'set.haptics': 'Vibración', 'set.hapticsDesc': 'Vibración suave al tocar, acertar y subir de nivel.',
+  'set.privacy': 'Política de privacidad', 'set.privacyDesc': 'No se recopilan datos. Todo queda en tu dispositivo.', 'set.privacyBtn': 'Leer',
+  'set.help': 'Ayuda', 'set.tutorial': 'Tutorial', 'set.tutorialDesc': 'Vuelve a ver la introducción.', 'set.tutorialBtn': 'Ver',
+  'onb.skip': 'Saltar', 'onb.next': 'Siguiente', 'onb.start': '¡A jugar!',
+  'onb.welcome.title': 'Bienvenido a SYNAPSE', 'onb.welcome.body': 'Desafíos rápidos y variados para tu cerebro. Cada partida es distinta, y el juego aprende a conocerte.',
+  'onb.skills.title': '8 habilidades, un perfil', 'onb.skills.body': 'Memoria, percepción, lógica, reacción, atención, espacial, decisión y flexibilidad. Tu radar toma forma mientras juegas.',
+  'onb.adapt.title': 'Se adapta a ti', 'onb.adapt.body': '¿Demasiado fácil? Sube la dificultad. ¿Demasiado difícil? Afloja. Siempre en el punto justo para mejorar.',
+  'onb.short.title': 'Sesiones cortas, progreso real', 'onb.short.body': 'Con 5 minutos basta. Juega, supérate y descansa.',
+  'onb.easy': 'fácil', 'onb.hard': 'difícil',
 };
 
 export const STRINGS = { en, es };

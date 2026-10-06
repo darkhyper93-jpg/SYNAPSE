@@ -33,7 +33,7 @@
 }
 
 * { box-sizing: border-box; }
-html { font-size: calc(16px * var(--text-scale)); -webkit-text-size-adjust: 100%; background: #04050d; }
+html { font-size: calc(16px * var(--text-scale)); -webkit-text-size-adjust: 100%; text-size-adjust: 100%; background: #04050d; overscroll-behavior: none; }
 body {
   margin: 0;
   min-height: 100vh;
@@ -45,9 +45,17 @@ body {
   font-family: var(--font-body);
   line-height: 1.45;
   overflow-x: hidden;
+  overscroll-behavior: none;
   -webkit-font-smoothing: antialiased;
   -webkit-tap-highlight-color: transparent;
+  /* game feel on touch screens: no text selection, callouts or double-tap zoom */
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  touch-action: manipulation;
 }
+input, textarea { -webkit-user-select: text; user-select: text; }
+img, svg { -webkit-user-drag: none; }
 button { font: inherit; color: inherit; }
 kbd { font-family: var(--font-mono); }
 ::selection { background: rgba(255, 79, 216, 0.35); }
@@ -97,11 +105,15 @@ body[data-bg='off'] .grid-floor,
 body[data-bg='calm'] .aurora,
 body[data-bg='off'] .aurora { animation-play-state: paused; }
 body[data-bg='off'] .backdrop { opacity: 0.25; }
-body[data-bg='off'] #bg { opacity: 0; }
 
 /* ---------- app / screens ---------- */
-#app { position: relative; max-width: 1120px; margin: 0 auto; padding: 0 clamp(14px, 3vw, 32px); }
-.screen { min-height: 100vh; transition: opacity 0.26s var(--ease-out), transform 0.26s var(--ease-out); }
+#app {
+  position: relative;
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 0 max(clamp(14px, 3vw, 32px), env(safe-area-inset-right)) env(safe-area-inset-bottom) max(clamp(14px, 3vw, 32px), env(safe-area-inset-left));
+}
+.screen { min-height: 100vh; min-height: 100dvh; transition: opacity 0.26s var(--ease-out), transform 0.26s var(--ease-out); }
 .screen.is-entering { opacity: 0; transform: translateY(14px) scale(0.985); }
 .screen.is-leaving { position: absolute; inset: 0 clamp(14px, 3vw, 32px); opacity: 0; transform: translateY(-10px) scale(1.01); pointer-events: none; }
 
@@ -222,7 +234,7 @@ body.no-key-hints .key-hint, body.is-touch .key-hint { display: none; }
 @keyframes letterFloat { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-0.05em); } }
 
 /* ---------- HOME ---------- */
-.home { display: flex; flex-direction: column; align-items: center; gap: clamp(22px, 4vh, 40px); padding: clamp(36px, 8vh, 90px) 0 40px; text-align: center; }
+.home { display: flex; flex-direction: column; align-items: center; gap: clamp(18px, 3.6vh, 40px); padding: calc(clamp(28px, 7vh, 90px) + env(safe-area-inset-top)) 0 32px; text-align: center; }
 .home-hero { display: flex; flex-direction: column; align-items: center; gap: 14px; }
 .tagline { margin: 0; color: var(--muted); font-family: var(--font-display); letter-spacing: 0.32em; text-transform: uppercase; font-size: clamp(0.72rem, 1.6vw, 0.92rem); }
 .home-play { display: flex; flex-direction: column; align-items: center; gap: 22px; }
@@ -334,7 +346,7 @@ body.no-key-hints .key-hint, body.is-touch .key-hint { display: none; }
 .spark { width: 100%; height: 34px; }
 
 /* ---------- PAGE (profile/settings/results) ---------- */
-.page-head { display: flex; align-items: center; gap: 16px; padding: 28px 0 18px; }
+.page-head { display: flex; align-items: center; gap: 16px; padding: calc(20px + env(safe-area-inset-top)) 0 18px; }
 .page-head h1 { margin: 0; font-family: var(--font-display); letter-spacing: 0.18em; font-size: clamp(1.4rem, 3vw, 2rem); background: var(--accent); -webkit-background-clip: text; background-clip: text; color: transparent; }
 .profile, .settings, .results { padding-bottom: 60px; }
 .pf-section, .set-group, .res-section { margin-top: 28px; }
@@ -412,7 +424,7 @@ button.ch-item:hover { transform: translateY(-3px); box-shadow: 0 12px 30px -14p
 .about p { color: var(--muted); font-size: 0.9rem; }
 
 /* ---------- RESULTS ---------- */
-.results { display: flex; flex-direction: column; align-items: center; text-align: center; padding-top: 40px; }
+.results { display: flex; flex-direction: column; align-items: center; text-align: center; padding-top: calc(28px + env(safe-area-inset-top)); }
 .res-kicker { margin: 0; color: var(--muted); letter-spacing: 0.3em; font-size: 0.8rem; text-transform: uppercase; }
 .res-title { margin: 6px 0 0; font-family: var(--font-display); font-size: clamp(2rem, 6vw, 3.6rem); letter-spacing: 0.12em; background: var(--accent); background-size: 200% 100%; animation: shimmer 5s ease-in-out infinite; -webkit-background-clip: text; background-clip: text; color: transparent; }
 .res-hero { display: flex; flex-direction: column; align-items: center; gap: 6px; margin: 26px 0 10px; }
@@ -444,7 +456,7 @@ button.ch-item:hover { transform: translateY(-3px); box-shadow: 0 12px 30px -14p
 .res-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; margin-top: 26px; }
 
 /* ---------- toasts / modal ---------- */
-.toasts { position: fixed; top: 16px; left: 50%; transform: translateX(-50%); display: grid; gap: 8px; z-index: 100; pointer-events: none; }
+.toasts { position: fixed; top: calc(16px + env(safe-area-inset-top)); left: 50%; transform: translateX(-50%); display: grid; gap: 8px; z-index: 100; pointer-events: none; }
 .toast { display: flex; align-items: center; gap: 10px; padding: 10px 18px; border-radius: 999px; background: rgba(10, 12, 32, 0.9); border: 1px solid var(--c); box-shadow: 0 0 30px -6px var(--c); font-weight: 600; animation: toastIn 0.4s var(--ease-spring) both; white-space: nowrap; }
 .toast-icon { color: var(--c); filter: drop-shadow(0 0 6px var(--c)); }
 .toast.is-out { animation: toastOut 0.35s ease both; }
@@ -467,6 +479,11 @@ body.reduce-motion *, body.reduce-motion *::before, body.reduce-motion *::after 
   scroll-behavior: auto !important;
 }
 body.reduce-motion .aurora, body.reduce-motion .grid-floor { animation: none !important; }
+/* Modest phones: keep the look, drop the most expensive effects. */
+body.low-power .aurora { animation: none; filter: blur(60px); }
+body.low-power .btn, body.low-power .daily-card, body.low-power .snapshot, body.low-power .glass, body.low-power .pf-hero,
+body.low-power .chart-card, body.low-power .skill-card, body.low-power .set-group, body.low-power .ch-item, body.low-power .res-stat,
+body.low-power .option, body.low-power .hud, body.low-power .mode-chips { backdrop-filter: none; -webkit-backdrop-filter: none; }
 body.reduce-motion .drain i, body.reduce-motion .answer-timer i { transition-duration: var(--dur) !important; }
 body.reduce-motion .auto-bar i { animation-duration: 2.6s !important; }
 body.high-contrast { --line: rgba(220, 228, 255, 0.4); --line-hi: rgba(240, 244, 255, 0.7); --muted: #d6dcff; --dim: #b4bce6; --glass: rgba(8, 10, 28, 0.92); }

@@ -2,27 +2,36 @@
 <html lang="es">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
     <title>SYNAPSE</title>
     <meta name="description" content="SYNAPSE — adaptive cognitive challenges. The game learns how you play." />
     <meta name="theme-color" content="#05060f" />
-    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%23ff4fd8'/%3E%3Cstop offset='1' stop-color='%232ee6ff'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='64' height='64' rx='14' fill='%2305060f'/%3E%3Cpath d='M12 46 L26 30 L40 38 L52 16' stroke='url(%23g)' stroke-width='4' fill='none' stroke-linecap='round'/%3E%3Cg fill='url(%23g)'%3E%3Ccircle cx='12' cy='46' r='5'/%3E%3Ccircle cx='26' cy='30' r='6'/%3E%3Ccircle cx='40' cy='38' r='5'/%3E%3Ccircle cx='52' cy='16' r='6'/%3E%3C/g%3E%3C/svg%3E" />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700;800&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet" />
+    <meta name="color-scheme" content="dark" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="format-detection" content="telephone=no" />
+    <link rel="manifest" href="manifest.webmanifest" />
+    <link rel="icon" type="image/png" sizes="192x192" href="assets/icons/icon-192.png" />
+    <link rel="apple-touch-icon" href="assets/icons/icon-192.png" />
+    <link rel="stylesheet" href="src/styles/fonts.css" />
     <link rel="stylesheet" href="src/styles/main.css" />
     <link rel="stylesheet" href="src/styles/challenges.css" />
+    <link rel="stylesheet" href="src/styles/fx.css" />
   </head>
   <body>
     <div class="backdrop" aria-hidden="true">
-      <div class="aurora a1"></div>
-      <div class="aurora a2"></div>
-      <div class="aurora a3"></div>
+      <div class="parallax-layer">
+        <div class="aurora a1"></div>
+        <div class="aurora a2"></div>
+        <div class="aurora a3"></div>
+      </div>
       <div class="grid-floor"></div>
     </div>
     <canvas id="bg" aria-hidden="true"></canvas>
     <div class="vignette" aria-hidden="true"></div>
     <div id="app"></div>
+    <div id="fx-top" aria-hidden="true"></div>
     <noscript>SYNAPSE needs JavaScript.</noscript>
     <script type="module" src="src/main.js"></script>
   </body>
