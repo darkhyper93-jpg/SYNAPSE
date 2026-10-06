@@ -1,5 +1,6 @@
 // Small synthesized sound effects (WebAudio). Optional, never continuous.
 import { settings } from './settings.js';
+import { isNative } from './platform.js';
 
 let ctx = null;
 function create() {
@@ -68,7 +69,8 @@ const SOUNDS = {
  * Do it while the app is idle after start-up, not inside the first PLAY tap.
  */
 export function warmAudio() {
-  if (!settings.get().sound) return;
+  // Browsers only allow it after a user gesture (they would just log a warning); the app's WebView allows it.
+  if (!settings.get().sound || !isNative()) return;
   const idle = window.requestIdleCallback || ((fn) => setTimeout(fn, 1200));
   idle(
     () => {

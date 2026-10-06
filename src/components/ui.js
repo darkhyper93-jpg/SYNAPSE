@@ -157,44 +157,91 @@ export function confirmDialog({ title, body = '', confirm = t('ui.confirm'), can
   });
 }
 
-// Neuron mark nodes: [x, y, r] in the 64×64 mark. They are filled with the same diagonal pink→violet→cyan
-// gradient the SVG used (objectBoundingBox of the node group), sampled across each node.
+// Neuron mark nodes: [x, y, r] in the 64×64 mark; the delays match the old SVG node pulse.
 const MARK_NODES = [[10, 46, 5], [24, 30, 5.5], [40, 38, 5], [54, 16, 5.5], [30, 12, 3.5], [46, 54, 3.5]];
-const NODE_BOX = { x: 5, y: 8.5, w: 54.5, h: 49 };
-const GRAD_STOPS = [[255, 79, 216], [176, 123, 255], [46, 230, 255]];
-const mix = (a, b, k) => a.map((v, i) => Math.round(v + (b[i] - v) * k));
-function gradColor(t) {
-  const k = Math.min(1, Math.max(0, t));
-  const c = k < 0.5 ? mix(GRAD_STOPS[0], GRAD_STOPS[1], k / 0.5) : mix(GRAD_STOPS[1], GRAD_STOPS[2], (k - 0.5) / 0.5);
-  return `rgb(${c.join(',')})`;
+const NODE_DELAYS = [0, 0.3, 0.6, 0.9, 0, 0];
+
+// Neuron mark lines. They used to "draw themselves" with an SVG stroke-dashoffset animation (dash 80,
+// 80→0 over the first 45% of 3.2s with --ease-out; the branches 0.6s later), which repaints every
+// frame. Now every straight segment sits in its own clip box and is revealed by two counter-moving
+// transforms that follow exactly how far that dash had drawn — same look, compositor only.
+// box = the path's bounding box: the stroke gradient was objectBoundingBox, i.e. per path.
+const MARK_PATHS = [
+  { delay: 0, box: [10, 16, 44, 30], pts: [[10, 46], [24, 30], [40, 38], [54, 16]] },
+  { delay: 600, box: [24, 12, 22, 42], segs: [[[24, 30], [30, 12]], [[40, 38], [46, 54]]] }, // two subpaths
+];
+const DASH = 80;
+const PAD = 2; // stroke half-width + round cap, in mark units
+
+// cubic-bezier(0.16, 1, 0.3, 1) (--ease-out), solved for y at a given x
+function easeOut(x) {
+  const bz = (t, a, b) => 3 * a * t * (1 - t) ** 2 + 3 * b * t * t * (1 - t) + t ** 3;
+  let lo = 0;
+  let hi = 1;
+  for (let i = 0; i < 30; i++) {
+    const mid = (lo + hi) / 2;
+    if (bz(mid, 0.16, 0.3) < x) lo = mid;
+    else hi = mid;
+  }
+  return bz((lo + hi) / 2, 1, 1);
 }
-function nodeFill(x, y, r) {
-  const gx = 1 / (2 * NODE_BOX.w);
-  const gy = 1 / (2 * NODE_BOX.h);
-  const t = ((x - NODE_BOX.x) / NODE_BOX.w + (y - NODE_BOX.y) / NODE_BOX.h) / 2;
-  const ang = Math.atan2(gy, gx);
-  const half = (Math.hypot(gx, gy) * 2 * r * (Math.abs(Math.sin(ang)) + Math.abs(Math.cos(ang)))) / 2;
-  return `linear-gradient(${Math.round(90 + (ang * 180) / Math.PI)}deg, ${gradColor(t - half)}, ${gradColor(t + half)})`;
-}
+
+// Per segment: geometry, clip box and the keyframes of its reveal (computed once).
+const MARK_SEGS = MARK_PATHS.flatMap((path) => {
+  const segs = path.segs || path.pts.slice(1).map((p, i) => [path.pts[i], p]);
+  let start = 0;
+  return segs.map(([[x0, y0], [x1, y1]]) => {
+    if (path.segs) start = 0; // separate subpaths: SVG restarts the dash pattern on each one
+    const len = Math.hypot(x1 - x0, y1 - y0);
+    const bx = Math.min(x0, x1) - PAD;
+    const by = Math.min(y0, y1) - PAD;
+    const bw = Math.abs(x1 - x0) + 2 * PAD;
+    const bh = Math.abs(y1 - y0) + 2 * PAD;
+    const from = start;
+    start += len;
+    // visible fraction of the box (left → right: every segment runs rightwards)
+    const edge = (t) => {
+      const drawn = t >= 1440 ? DASH : DASH * easeOut(t / 1440);
+      const f = Math.min(1, Math.max(0, (drawn - from) / len));
+      return f <= 0 ? 0 : f >= 1 ? 1 : (PAD + f * (bw - 2 * PAD)) / bw;
+    };
+    const times = [];
+    for (let i = 0; i <= 48; i++) times.push(1440 * (i / 48) ** 2); // dense where the ease is steep
+    times.push(3200);
+    const outer = times.map((t) => ({ offset: t / 3200, transform: `translateX(${((edge(t) - 1) * 100).toFixed(2)}%)` }));
+    const inner = times.map((t) => ({ offset: t / 3200, transform: `translateX(${((1 - edge(t)) * 100).toFixed(2)}%)` }));
+    return { x0, y0, x1, y1, bx, by, bw, bh, box: path.box, delay: path.delay, outer, inner };
+  });
+});
 
 /**
  * Logo markup (animated gradient letters + neuron mark). Letters react to taps.
- * The mark is built for the compositor: the lines are "drawn" by a sliding reveal window
- * (two counter-moving transforms) and the nodes pulse with transform — no SVG animation,
- * so nothing is restyled, laid out or repainted while it animates.
+ * The mark is built for the compositor: line segments are revealed by sliding windows and the nodes
+ * pulse with transform — no SVG animation, so nothing is restyled, laid out or repainted while it animates.
  */
 export function logo(size = 'lg') {
   const letters = 'SYNAPSE'.split('').map((c, i) => `<span style="--i:${i}">${c}<i class="lw-fill" aria-hidden="true"></i></span>`).join('');
-  const dots = MARK_NODES.map(([x, y, r], i) => `<i class="lm-dot" style="--x:${x};--y:${y};--r:${r};--d:${[0, 0.3, 0.6, 0.9, 0, 0][i]}s;background:${nodeFill(x, y, r)}"></i>`).join('');
+  const dots = MARK_NODES.map(([x, y, r], i) => `<i class="lm-dot" style="--x:${x};--y:${y};--r:${r};--d:${NODE_DELAYS[i]}s"></i>`).join('');
+  const pct = (v, of) => `${((v / of) * 100).toFixed(3)}%`;
+  const lines = MARK_SEGS.map((g, i) => {
+    const [gx, gy, gw, gh] = g.box;
+    return `<span class="lm-seg" style="left:${pct(g.bx, 64)};top:${pct(g.by, 64)};width:${pct(g.bw, 64)};height:${pct(g.bh, 64)}"><span class="lm-wipe"><span class="lm-wipe-in"><svg viewBox="0 0 64 64" style="left:${pct(-g.bx, g.bw)};top:${pct(-g.by, g.bh)};width:${pct(64, g.bw)};height:${pct(64, g.bh)}">
+      <defs><linearGradient id="lm${size}${i}" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="1" y2="1" gradientTransform="matrix(${gw} 0 0 ${gh} ${gx} ${gy})"><stop offset="0" stop-color="#ff4fd8"/><stop offset=".5" stop-color="#b07bff"/><stop offset="1" stop-color="#2ee6ff"/></linearGradient></defs>
+      <path d="M${g.x0} ${g.y0} L${g.x1} ${g.y1}" fill="none" stroke="url(#lm${size}${i})" stroke-width="3" stroke-linecap="round"/>
+    </svg></span></span></span>`;
+  }).join('');
   const el = h('div', {
     class: `logo logo-${size}`,
-    html: `<span class="logo-mark" aria-hidden="true"><span class="lm-reveal"><span class="lm-reveal-inner"><svg viewBox="0 0 64 64">
-      <defs><linearGradient id="lm${size}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ff4fd8"/><stop offset=".5" stop-color="#b07bff"/><stop offset="1" stop-color="#2ee6ff"/></linearGradient></defs>
-      <g fill="none" stroke="url(#lm${size})" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M10 46 L24 30 L40 38 L54 16"/><path d="M24 30 L30 12 M40 38 L46 54"/>
-      </g>
-    </svg></span></span>${dots}</span><span class="logo-word">${letters}</span>`,
+    html: `<span class="logo-mark" aria-hidden="true">${lines}${dots}</span><span class="logo-word">${letters}</span>`,
   });
+  if (!reduced()) {
+    el.querySelectorAll('.lm-seg').forEach((seg, i) => {
+      const g = MARK_SEGS[i];
+      const timing = { duration: 3200, iterations: Infinity, delay: g.delay };
+      seg.firstChild.animate(g.outer, timing);
+      seg.firstChild.firstChild.animate(g.inner, timing);
+    });
+  }
   flowLetters(el.querySelector('.logo-word'));
   // Easter egg: tap letters to make them jump and spark.
   el.addEventListener('pointerdown', (e) => {
@@ -261,7 +308,8 @@ function flowLetters(word) {
     probes.forEach((b) => b.remove());
     const next = [];
     try {
-      const masks = await Promise.all(
+      // allSettled: every blob URL is created (and tracked in `next`) before we decide, so none leaks
+      const settled = await Promise.allSettled(
         spans.map(async (s, i) => {
           const [w, hgt] = sizes[i];
           if (!w || !hgt) throw new Error('size');
@@ -284,7 +332,8 @@ function flowLetters(word) {
           return url;
         }),
       );
-      if (g !== gen || !word.isConnected) throw new Error('stale');
+      if (g !== gen || !word.isConnected || settled.some((r) => r.status !== 'fulfilled')) throw new Error('stale');
+      const masks = settled.map((r) => r.value);
       masks.forEach((url, i) => {
         const fill = spans[i].querySelector('.lw-fill');
         fill.style.webkitMaskImage = `url(${url})`;

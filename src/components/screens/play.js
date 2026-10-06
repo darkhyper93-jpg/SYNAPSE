@@ -39,13 +39,14 @@ export function playScreen({ mode = 'quick', typeId, difficulty } = {}) {
   const multEl = h('em.hud-mult');
   const bestEl = h('small', `${t('hud.best')} ${profile.state.stats.bestStreak}`);
   const sessionFill = h('i');
+  const sessionGlow = h('b.hud-bar-glow');
   const sessionLabel = h('span.hud-progress-label');
   const quitBtn = h('button.icon-btn.pause-btn', { type: 'button', 'aria-label': t('hud.pause'), onclick: () => pause() }, h('span', '❚❚'));
   const hud = h(
     'header.hud',
     quitBtn,
     h('div.hud-mode', t(`mode.${mode}`)),
-    h('div.hud-progress', h('div.hud-bar', sessionFill), sessionLabel),
+    h('div.hud-progress', h('div.hud-bar', sessionFill, sessionGlow), sessionLabel),
     h('div.hud-streak', h('span.flame', { html: flameSVG() }), h('div', h('div.hud-streak-row', streakEl, multEl), bestEl)),
     h('div.hud-score', h('small', t('hud.score')), scoreEl),
   );
@@ -83,20 +84,33 @@ export function playScreen({ mode = 'quick', typeId, difficulty } = {}) {
   };
   const fitObserver = new MutationObserver(fit);
   fitObserver.observe(stage, { childList: true });
-  window.addEventListener('resize', fit);
+  const onResize = () => {
+    barW = 0;
+    fit();
+  };
+  window.addEventListener('resize', onResize);
 
   // ---------- HUD ----------
+  // the fill scales on the compositor; its glow rides separately so scaling never squashes it
+  let barW = 0; // track width, re-read after a resize
+  const setFill = (p) => {
+    sessionFill.style.transform = `scaleX(${p.toFixed(4)})`;
+    sessionGlow.style.transform = `translateX(${(p * 100).toFixed(2)}%)`;
+    // a sliver of fill only casts a faint glow (none at 0): fade it in over the first ~12px
+    if (!barW) barW = sessionGlow.clientWidth;
+    sessionGlow.style.opacity = Math.min(1, (p * barW) / 12).toFixed(2);
+  };
   const setLabel = (text) => {
     if (sessionLabel.textContent !== text) sessionLabel.textContent = text; // no relayout when unchanged
   };
   const updateProgress = () => {
     if (session.mode.count) {
-      sessionFill.style.transform = `scaleX(${(session.index / session.mode.count).toFixed(4)})`;
+      setFill(session.index / session.mode.count);
       setLabel(`${Math.min(session.index + 1, session.mode.count)}/${session.mode.count}`);
     } else {
       const live = active && challengeStart ? now() - challengeStart : 0;
       const p = Math.min(1, (session.activeMs + live) / session.mode.duration);
-      sessionFill.style.transform = `scaleX(${p.toFixed(4)})`;
+      setFill(p);
       const left = Math.max(0, session.mode.duration - session.activeMs - live);
       setLabel(`${Math.floor(left / 60000)}:${String(Math.floor((left % 60000) / 1000)).padStart(2, '0')}`);
     }
@@ -105,10 +119,12 @@ export function playScreen({ mode = 'quick', typeId, difficulty } = {}) {
   updateProgress();
 
   let shownScore = 0;
-  const setScore = () => {
-    if (shownScore === session.score) return;
-    countUp(scoreEl, session.score, { from: shownScore, duration: 450 });
-    shownScore = session.score;
+  // bump: also when a flying "+pts" chip lands after the score was already updated
+  const setScore = (bump = false) => {
+    if (shownScore !== session.score) {
+      countUp(scoreEl, session.score, { from: shownScore, duration: 450 });
+      shownScore = session.score;
+    } else if (!bump) return;
     replay(scoreEl, 'bump');
   };
   const setStreak = () => {
@@ -132,7 +148,7 @@ export function playScreen({ mode = 'quick', typeId, difficulty } = {}) {
   // One-shot effects restarted with WAAPI: no class toggling + forced reflow on every answer.
   const FLASH_PSEUDO = 'pseudoElement' in (window.KeyframeEffect?.prototype || {});
   const flashStage = (ok) => {
-    if (!FLASH_PSEUDO) return;
+    if (!FLASH_PSEUDO || s.reducedMotion) return;
     stage.dataset.flash = ok ? 'ok' : 'bad';
     stage._flash?.cancel();
     stage._flash = stage.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 450, easing: 'ease', pseudoElement: '::after' });
@@ -175,7 +191,7 @@ export function playScreen({ mode = 'quick', typeId, difficulty } = {}) {
     if (trial.correct) {
       const p = originPoint(trial);
       haptic('light');
-      flyPoints(p, scoreEl, `+${pts}`, color).then(setScore);
+      flyPoints(p, scoreEl, `+${pts}`, color).then(() => setScore(true));
     } else {
       haptic('error');
       if (!s.reducedMotion) shakeStage();
@@ -537,7 +553,7 @@ export function playScreen({ mode = 'quick', typeId, difficulty } = {}) {
       abort?.();
       app.onAppPause = null;
       fitObserver.disconnect();
-      window.removeEventListener('resize', fit);
+      window.removeEventListener('resize', onResize);
       clearInterval(progressTimer);
       clearTimeout(fbTimer);
       document.removeEventListener('keydown', onKey);

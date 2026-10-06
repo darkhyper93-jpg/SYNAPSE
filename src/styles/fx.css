@@ -45,7 +45,8 @@
 .play-orbit i:nth-child(4) { left: auto; right: -4px; top: 50%; margin: -4px 0 0; width: 5px; height: 5px; background: #ffc53d; box-shadow: 0 0 12px #ffc53d; }
 @keyframes spin { to { transform: rotate(360deg); } }
 .play-btn.is-charging { transform: scale(0.93); }
-.play-btn.is-charging .play-glow { opacity: 0; }
+.play-btn.is-charging .play-glow,
+.play-btn.is-charging .play-glow.is-hover { opacity: 0; }
 .play-btn.is-charging .play-glow.is-hot { opacity: 1; }
 /* Charging speeds the orbit up to one turn per 1.4s without touching the 9s spin (changing its
    duration made the dots jump): a second layer adds 1/1.66 turn per second only while pressed. */

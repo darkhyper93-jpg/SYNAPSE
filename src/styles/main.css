@@ -204,12 +204,11 @@ body.no-key-hints .key-hint, body.is-touch .key-hint { display: none; }
 .logo-lg { font-size: clamp(3rem, 10vw, 7rem); }
 .logo-sm { font-size: 1.6rem; }
 .logo-mark { position: relative; display: inline-block; flex: none; width: 0.82em; height: 0.82em; filter: drop-shadow(0 0 14px rgba(176, 123, 255, 0.6)); }
-/* lines draw themselves: a window slides open while its content counter-slides (compositor only) */
-.lm-reveal { position: absolute; inset: 0; overflow: hidden; animation: lmWipe 3.2s var(--ease-out) infinite; will-change: transform; }
-.lm-reveal-inner { position: absolute; inset: 0; animation: lmWipeInner 3.2s var(--ease-out) infinite; will-change: transform; }
-.lm-reveal svg { display: block; width: 100%; height: 100%; overflow: visible; }
-@keyframes lmWipe { 0% { transform: translateX(-100%); } 45%, 100% { transform: translateX(0); } }
-@keyframes lmWipeInner { 0% { transform: translateX(100%); } 45%, 100% { transform: translateX(0); } }
+/* line segments: each one is clipped to its own box and revealed by a sliding window (ui.js) */
+.lm-seg { position: absolute; overflow: hidden; }
+.lm-wipe, .lm-wipe-in { position: absolute; inset: 0; will-change: transform; }
+.lm-wipe { overflow: hidden; }
+.lm-seg svg { position: absolute; display: block; }
 .lm-dot {
   position: absolute;
   left: calc(var(--x) / 64 * 100%);
@@ -218,6 +217,8 @@ body.no-key-hints .key-hint, body.is-touch .key-hint { display: none; }
   height: calc(var(--r) / 32 * 100%);
   margin: calc(var(--r) / -64 * 100%) 0 0 calc(var(--r) / -64 * 100%);
   border-radius: 50%;
+  /* each node carries the whole diagonal gradient, like the SVG's per-circle objectBoundingBox */
+  background: linear-gradient(135deg, #ff4fd8, #b07bff, #2ee6ff);
   animation: node 2.4s ease-in-out infinite;
   animation-delay: var(--d);
   will-change: transform;
@@ -528,13 +529,14 @@ body.reduce-motion *, body.reduce-motion *::before, body.reduce-motion *::after 
   transition-duration: 0.001ms !important;
   scroll-behavior: auto !important;
 }
-/* Touch devices (phones, tablets): a backdrop blur above the animated canvas has to be
-   recomputed by the GPU every single frame. A denser glass tint gives the same frosted look. */
+/* Touch devices (phones, tablets): every backdrop blur is an extra GPU pass each time anything
+   moves behind or above it. A denser tint, calibrated to the colour the blurred glass had over
+   the page gradient, gives the same panels without it (and keeps text behind modals unreadable). */
 @media (hover: none), (pointer: coarse) {
-  :root { --glass: rgba(15, 18, 46, 0.84); --glass-hi: rgba(28, 33, 80, 0.9); }
+  :root { --glass: rgba(13, 17, 41, 0.84); --glass-hi: rgba(22, 28, 65, 0.9); }
   *, *::before, *::after { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
 }
-body.is-touch { --glass: rgba(15, 18, 46, 0.84); --glass-hi: rgba(28, 33, 80, 0.9); }
+body.is-touch { --glass: rgba(13, 17, 41, 0.84); --glass-hi: rgba(22, 28, 65, 0.9); }
 body.is-touch *, body.is-touch *::before, body.is-touch *::after { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
 /* Modest phones: keep the look, drop the most expensive effects. */
 body.low-power .btn, body.low-power .daily-card, body.low-power .snapshot, body.low-power .glass, body.low-power .pf-hero,
