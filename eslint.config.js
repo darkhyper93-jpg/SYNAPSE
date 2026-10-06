@@ -11,7 +11,7 @@ export default [
         setTimeout: 'readonly', clearTimeout: 'readonly', setInterval: 'readonly', clearInterval: 'readonly',
         console: 'readonly', process: 'readonly', structuredClone: 'readonly', Node: 'readonly',
         HTMLButtonElement: 'readonly', URLSearchParams: 'readonly', getComputedStyle: 'readonly',
-        MutationObserver: 'readonly', history: 'readonly', self: 'readonly', caches: 'readonly', fetch: 'readonly', URL: 'readonly',
+        MutationObserver: 'readonly', DOMParser: 'readonly', history: 'readonly', self: 'readonly', caches: 'readonly', fetch: 'readonly', URL: 'readonly',
       },
     },
     rules: {

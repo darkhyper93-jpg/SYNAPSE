@@ -1,11 +1,33 @@
 import { h } from '../../utils/dom.js';
 import { t, setLang } from '../../game/i18n.js';
-import { go, confirmDialog, toast, app } from '../ui.js';
+import { go, confirmDialog, toast, app, pushLayer } from '../ui.js';
 import { settings, applySettings } from '../../game/settings.js';
 import { profile } from '../../game/playerProfile.js';
 import { sfx } from '../../game/audio.js';
 
 const APP_VERSION = '1.0.0';
+
+/** Shows the bundled privacy policy inside the app (Back / tap ✕ closes it). */
+async function openPrivacy() {
+  let html = '';
+  try {
+    const doc = new DOMParser().parseFromString(await (await fetch('privacy.html')).text(), 'text/html');
+    doc.querySelector('.back')?.remove();
+    html = doc.querySelector('main')?.innerHTML || '';
+  } catch {
+    location.href = 'privacy.html';
+    return;
+  }
+  let unregister = () => {};
+  const close = () => {
+    unregister();
+    layer.classList.add('is-out');
+    setTimeout(() => layer.remove(), 200);
+  };
+  const layer = h('div.modal-overlay.doc-overlay', { role: 'dialog', 'aria-modal': 'true' }, h('div.doc-sheet', h('button.icon-btn.doc-close', { type: 'button', 'aria-label': t('ui.cancel'), onclick: close }, '✕'), h('div.doc-body', { html })));
+  unregister = pushLayer(close);
+  document.body.append(layer);
+}
 
 export function settingsScreen() {
   const s = settings.get();
@@ -102,7 +124,7 @@ export function settingsScreen() {
       h('button.btn.btn-danger', { type: 'button', onclick: reset }, t('set.reset')),
     ),
     h('section.set-group.about', h('h3', t('set.about')), h('p', { html: t('set.aboutBody') }),
-      h('div.set-row', h('div.set-text', h('b', t('set.privacy')), h('small', t('set.privacyDesc'))), h('button.btn.btn-ghost', { type: 'button', onclick: () => (location.href = 'privacy.html') }, t('set.privacyBtn'))),
+      h('div.set-row', h('div.set-text', h('b', t('set.privacy')), h('small', t('set.privacyDesc'))), h('button.btn.btn-ghost', { type: 'button', onclick: () => openPrivacy() }, t('set.privacyBtn'))),
       h('p.set-help', `SYNAPSE v${APP_VERSION}`),
     ),
   );
