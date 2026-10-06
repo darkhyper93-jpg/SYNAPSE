@@ -28,6 +28,14 @@ android {
         }
     }
     signingConfigs {
+        // A fixed debug key (not a secret: debug builds can't go to Play) so every test APK built by CI
+        // installs over the previous one instead of failing with a signature conflict.
+        debug {
+            storeFile file('debug.keystore')
+            storePassword 'android'
+            keyAlias 'androiddebugkey'
+            keyPassword 'android'
+        }
         release {
             if (releaseStoreFile) {
                 storeFile file(releaseStoreFile)
@@ -38,6 +46,9 @@ android {
         }
     }
     buildTypes {
+        debug {
+            signingConfig signingConfigs.debug
+        }
         release {
             if (releaseStoreFile) {
                 signingConfig signingConfigs.release

@@ -84,6 +84,8 @@ Cada *push* ejecuta `.github/workflows/android.yml`, que:
 
 Los artefactos se descargan en GitHub → *Actions* → la ejecución → *Artifacts*. El `versionCode` es el número de ejecución, así que siempre aumenta, como exige Play.
 
+El APK de depuración se firma siempre con la misma clave de prueba (`android/app/debug.keystore`, que no es secreta), así que cada versión nueva se instala encima de la anterior sin perder el progreso. El AAB de Google Play usa tu clave propia.
+
 ### Compilar en tu PC (Android Studio)
 
 ```bash

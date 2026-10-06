@@ -10,3 +10,4 @@ android/local.properties
 android/keystore.properties
 *.jks
 *.keystore
+!android/app/debug.keystore
