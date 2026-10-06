@@ -1,5 +1,5 @@
 // Play screen: runs a session (intro → countdown → challenge → feedback → summary → … → results).
-import { h, now, countUp } from '../../utils/dom.js';
+import { h, now, countUp, replay } from '../../utils/dom.js';
 import { t } from '../../game/i18n.js';
 import { go, app } from '../ui.js';
 import { profile } from '../../game/playerProfile.js';
@@ -86,16 +86,19 @@ export function playScreen({ mode = 'quick', typeId, difficulty } = {}) {
   window.addEventListener('resize', fit);
 
   // ---------- HUD ----------
+  const setLabel = (text) => {
+    if (sessionLabel.textContent !== text) sessionLabel.textContent = text; // no relayout when unchanged
+  };
   const updateProgress = () => {
     if (session.mode.count) {
-      sessionFill.style.width = `${(session.index / session.mode.count) * 100}%`;
-      sessionLabel.textContent = `${Math.min(session.index + 1, session.mode.count)}/${session.mode.count}`;
+      sessionFill.style.transform = `scaleX(${(session.index / session.mode.count).toFixed(4)})`;
+      setLabel(`${Math.min(session.index + 1, session.mode.count)}/${session.mode.count}`);
     } else {
       const live = active && challengeStart ? now() - challengeStart : 0;
       const p = Math.min(1, (session.activeMs + live) / session.mode.duration);
-      sessionFill.style.width = `${p * 100}%`;
+      sessionFill.style.transform = `scaleX(${p.toFixed(4)})`;
       const left = Math.max(0, session.mode.duration - session.activeMs - live);
-      sessionLabel.textContent = `${Math.floor(left / 60000)}:${String(Math.floor((left % 60000) / 1000)).padStart(2, '0')}`;
+      setLabel(`${Math.floor(left / 60000)}:${String(Math.floor((left % 60000) / 1000)).padStart(2, '0')}`);
     }
   };
   const progressTimer = setInterval(updateProgress, 500);
@@ -106,9 +109,7 @@ export function playScreen({ mode = 'quick', typeId, difficulty } = {}) {
     if (shownScore === session.score) return;
     countUp(scoreEl, session.score, { from: shownScore, duration: 450 });
     shownScore = session.score;
-    scoreEl.classList.remove('bump');
-    void scoreEl.offsetWidth;
-    scoreEl.classList.add('bump');
+    replay(scoreEl, 'bump');
   };
   const setStreak = () => {
     const st = session.streak;
@@ -118,9 +119,7 @@ export function playScreen({ mode = 'quick', typeId, difficulty } = {}) {
     const m = streakMultiplier(st);
     multEl.textContent = st >= 3 ? `×${m.toFixed(2)}` : '';
     bestEl.textContent = `${t('hud.best')} ${Math.max(profile.state.stats.bestStreak, session.bestStreak)}`;
-    streakEl.classList.remove('bump');
-    void streakEl.offsetWidth;
-    streakEl.classList.add('bump');
+    replay(streakEl, 'bump');
   };
 
   // ---------- feedback ----------
@@ -130,6 +129,20 @@ export function playScreen({ mode = 'quick', typeId, difficulty } = {}) {
     const r = (o && o.getBoundingClientRect ? o.getBoundingClientRect() : null) || stage.getBoundingClientRect();
     return { x: r.left + r.width / 2, y: r.top + Math.min(r.height / 2, 260) };
   };
+  // One-shot effects restarted with WAAPI: no class toggling + forced reflow on every answer.
+  const FLASH_PSEUDO = 'pseudoElement' in (window.KeyframeEffect?.prototype || {});
+  const flashStage = (ok) => {
+    if (!FLASH_PSEUDO) return;
+    stage.dataset.flash = ok ? 'ok' : 'bad';
+    stage._flash?.cancel();
+    stage._flash = stage.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 450, easing: 'ease', pseudoElement: '::after' });
+  };
+  // composite 'add' stacks the shake on top of fit()'s inline scale instead of replacing it
+  const SHAKE = [0, -7, 6, -4, 2, 0].map((x) => ({ transform: `translateX(${x}px)`, easing: 'ease' }));
+  const shakeStage = () => {
+    stage._shake?.cancel();
+    stage._shake = stage.animate(SHAKE, { duration: 400, composite: 'add' });
+  };
   const showFeedback = (trial, pts) => {
     if (trial.feedback === 'none') return;
     const color = SKILLS[active?.skill]?.color || '#2ee6ff';
@@ -137,9 +150,7 @@ export function playScreen({ mode = 'quick', typeId, difficulty } = {}) {
       const chip = h(`div.mini-fb${trial.correct ? '.is-ok' : '.is-bad'}${trial.forgiving ? '.is-soft' : ''}`, trial.correct ? `+${pts}` : '✕');
       fx.append(chip);
       setTimeout(() => chip.remove(), 900);
-      stage.classList.remove('flash-ok', 'flash-bad');
-      void stage.offsetWidth;
-      stage.classList.add(trial.correct ? 'flash-ok' : 'flash-bad');
+      flashStage(trial.correct);
       haptic(trial.correct ? 'tick' : 'medium');
       setScore();
       return;
@@ -163,16 +174,11 @@ export function playScreen({ mode = 'quick', typeId, difficulty } = {}) {
     }, trial.explanation ? 2000 : 1300);
     if (trial.correct) {
       const p = originPoint(trial);
-      app.background?.burst(p.x, p.y, color, 30);
       haptic('light');
       flyPoints(p, scoreEl, `+${pts}`, color).then(setScore);
     } else {
       haptic('error');
-      if (!s.reducedMotion) {
-        stage.classList.remove('shake');
-        void stage.offsetWidth;
-        stage.classList.add('shake');
-      }
+      if (!s.reducedMotion) shakeStage();
     }
   };
 
@@ -192,7 +198,6 @@ export function playScreen({ mode = 'quick', typeId, difficulty } = {}) {
             comboText(fx, t(hit[1]), st >= 12 ? '#ff4fd8' : st >= 8 ? '#ffc53d' : '#34f5c5');
             sfx('combo');
             haptic('medium');
-            if (st >= 8) app.background?.surge('#ffb02e');
           }, 250);
         }
       }
@@ -207,17 +212,17 @@ export function playScreen({ mode = 'quick', typeId, difficulty } = {}) {
       });
     },
     setProgress: (i, n) => {
-      if (dots.childElementCount !== n) {
+      if (dots.dataset.n !== String(n)) {
+        dots.dataset.n = n;
         dots.innerHTML = '';
         for (let k = 0; k < n && n <= 30; k++) dots.append(h('i'));
         if (n > 30) dots.append(h('div.dots-bar', h('i')));
       }
-      if (n > 30) dots.querySelector('.dots-bar i').style.width = `${(i / n) * 100}%`;
+      if (n > 30) dots.querySelector('.dots-bar i').style.transform = `scaleX(${i / n})`;
       else [...dots.children].forEach((d, k) => d.classList.toggle('is-done', k < i));
     },
     sound: (name) => sfx(name),
     haptic: (kind) => haptic(kind),
-    burst: (x, y, color, n) => app.background?.burst(x, y, color, n),
     available: () => ({ w: stageWrap.clientWidth, h: stageWrap.clientHeight }),
   };
 
@@ -282,6 +287,7 @@ export function playScreen({ mode = 'quick', typeId, difficulty } = {}) {
     stage.innerHTML = '';
     prompt.innerHTML = '';
     dots.innerHTML = '';
+    delete dots.dataset.n;
     skillChip.textContent = t(`skill.${plan.skill}`);
     skillChip.style.setProperty('--c', skill.color);
     chName.textContent = t(`ch.${meta.id}.name`);
@@ -354,7 +360,7 @@ export function playScreen({ mode = 'quick', typeId, difficulty } = {}) {
     const ts = profile.typeStats(sum.type);
     const newBest = (ts.bestStars || 0) > 0 && stars > ts.bestStars;
     ts.bestStars = Math.max(ts.bestStars || 0, stars);
-    profile.save();
+    profile.saveSoon();
     const rating = starRating(stars);
     const card = h(
       'div.summary-card',
@@ -384,8 +390,6 @@ export function playScreen({ mode = 'quick', typeId, difficulty } = {}) {
     if (sum.perfect) {
       sfx('perfect');
       haptic('success');
-      const r = card.getBoundingClientRect();
-      app.background?.burst(r.left + r.width / 2, r.top + 60, skill.color, 50);
     }
     const ok = await waitReady(3200);
     // If the game was paused meanwhile, the pause menu now owns the overlay.
@@ -404,7 +408,6 @@ export function playScreen({ mode = 'quick', typeId, difficulty } = {}) {
     abort?.();
     abort = null;
     el.classList.remove('is-running');
-    app.background?.setMode(s.background === 'off' ? 'off' : 'calm');
     clearOverlay();
     const canEnd = session.history.length > 0;
     const menu = h(
@@ -443,11 +446,18 @@ export function playScreen({ mode = 'quick', typeId, difficulty } = {}) {
   async function runChallenge(plan) {
     stage.innerHTML = '';
     document.activeElement?.blur?.();
-    app.background?.setMode(s.background === 'off' ? 'off' : 'calm');
-    const abortP = new Promise((r) => (abort = () => r(null)));
-    const go321 = countdown(fx, { full: firstRun && !s.reducedMotion });
+    const ac = new window.AbortController();
+    const abortP = new Promise(
+      (r) =>
+        (abort = () => {
+          ac.abort();
+          r(null);
+        }),
+    );
+    const go321 = countdown(fx, { full: firstRun && !s.reducedMotion, signal: ac.signal });
+    if (!(await Promise.race([go321, abortP]))) return null;
+    // only a countdown that actually finished counts (a paused one is shown in full again)
     firstRun = false;
-    if ((await Promise.race([go321.then(() => true), abortP])) === null) return null;
     el.classList.add('is-running');
     challengeStart = now();
     const result = await Promise.race([plan.challenge.start(stage, hooks), abortP]);
@@ -463,7 +473,6 @@ export function playScreen({ mode = 'quick', typeId, difficulty } = {}) {
       const plan = session.next();
       if (!plan) break;
       active = plan;
-      app.background?.setMode(s.background === 'off' ? 'off' : s.background === 'calm' ? 'calm' : 'full');
       const ok = await intro(plan);
       if (!alive) return;
       if (!ok) {
@@ -490,7 +499,6 @@ export function playScreen({ mode = 'quick', typeId, difficulty } = {}) {
       }, 250);
       updateProgress();
       setScore();
-      app.background?.setMode(s.background === 'off' ? 'off' : s.background === 'calm' ? 'calm' : 'full');
       await celebrations(sum);
       if (!alive) return;
       if (paused) await waitResume();
@@ -533,7 +541,6 @@ export function playScreen({ mode = 'quick', typeId, difficulty } = {}) {
       clearInterval(progressTimer);
       clearTimeout(fbTimer);
       document.removeEventListener('keydown', onKey);
-      app.background?.setMode(s.background || 'full');
     },
   };
 }

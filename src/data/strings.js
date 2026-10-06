@@ -84,8 +84,7 @@ const en = {
   // settings
   'set.title': 'SETTINGS', 'set.general': 'General', 'set.lang': 'Language', 'set.sound': 'Sound effects',
   'set.soundDesc': 'Short cues for correct / incorrect / results.', 'set.volume': 'Volume',
-  'set.visual': 'Visual & accessibility', 'set.background': 'Background animation',
-  'set.bgFull': 'Full', 'set.bgCalm': 'Calm', 'set.bgOff': 'Off',
+  'set.visual': 'Visual & accessibility',
   'set.motion': 'Reduce motion', 'set.motionDesc': 'Removes decorative animation (challenges keep the motion they need).',
   'set.text': 'Text size', 'set.contrast': 'High contrast', 'set.contrastDesc': 'Stronger borders and text, no glow.',
   'set.colorAssist': 'Colour assist', 'set.colorAssistDesc': 'Adds letter tags to colours so nothing relies on colour alone.',
@@ -278,8 +277,7 @@ const es = {
 
   'set.title': 'AJUSTES', 'set.general': 'General', 'set.lang': 'Idioma', 'set.sound': 'Efectos de sonido',
   'set.soundDesc': 'Sonidos breves para acierto / error / resultados.', 'set.volume': 'Volumen',
-  'set.visual': 'Visual y accesibilidad', 'set.background': 'Animación de fondo',
-  'set.bgFull': 'Completa', 'set.bgCalm': 'Suave', 'set.bgOff': 'Apagada',
+  'set.visual': 'Visual y accesibilidad',
   'set.motion': 'Reducir movimiento', 'set.motionDesc': 'Quita la animación decorativa (los desafíos mantienen el movimiento que necesitan).',
   'set.text': 'Tamaño de texto', 'set.contrast': 'Alto contraste', 'set.contrastDesc': 'Bordes y texto más marcados, sin brillo.',
   'set.colorAssist': 'Asistencia de color', 'set.colorAssistDesc': 'Añade letras a los colores para no depender solo del color.',

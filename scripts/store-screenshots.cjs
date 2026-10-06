@@ -18,7 +18,7 @@ async function seed(page) {
   await page.evaluate(async (lang) => {
     localStorage.clear();
     localStorage.setItem('synapse.v1.onboarded', 'true');
-    localStorage.setItem('synapse.v1.settings', JSON.stringify({ lang, reducedMotion: false, background: 'full', haptics: true, sound: false }));
+    localStorage.setItem('synapse.v1.settings', JSON.stringify({ lang, reducedMotion: false, haptics: true, sound: false }));
     const { PlayerProfile } = await import('./src/game/playerProfile.js');
     const { DifficultyManager } = await import('./src/engine/difficultyManager.js');
     const { SKILL_IDS } = await import('./src/data/skills.js');
@@ -75,11 +75,11 @@ const open = (q) => async (page) => {
 };
 
 const shots = [
-  ['home', async (page) => { await open('skipintro')(page); await page.touchscreen.tap(30, 40); await page.waitForTimeout(250); }],
+  ['home', open('skipintro')],
   ['intro', async (page) => { await open('practice=parallax&d=0.55')(page); await page.waitForTimeout(800); }],
-  ['trace', async (page) => { await open('practice=trace&d=0.9')(page); await page.tap('.ready-btn'); await page.waitForTimeout(2600); }],
-  ['mirror', async (page) => { await open('practice=mirror&d=0.85')(page); await page.tap('.ready-btn'); await page.waitForTimeout(3600); }],
-  ['echo', async (page) => { await open('practice=echo&d=0.7')(page); await page.tap('.ready-btn'); await page.waitForTimeout(2900); }],
+  ['trace', async (page) => { await open('practice=trace&d=0.9')(page); await page.tap('.ready-btn'); await page.waitForTimeout(4300); }],
+  ['mirror', async (page) => { await open('practice=mirror&d=0.85')(page); await page.tap('.ready-btn'); await page.waitForTimeout(5300); }],
+  ['echo', async (page) => { await open('practice=echo&d=0.7')(page); await page.tap('.ready-btn'); await page.waitForTimeout(4600); }],
   ['levelup', async (page) => {
     await open('skipintro')(page);
     page.evaluate(() => window.__synapse.fx.celebrate({ kicker: document.documentElement.lang === 'es' ? 'SUBES DE NIVEL' : 'LEVEL UP', title: document.documentElement.lang === 'es' ? 'MEMORIA' : 'MEMORY', subtitle: document.documentElement.lang === 'es' ? 'Nivel 4 · Experto' : 'Level 4 · Expert', color: '#b07bff', duration: 8000 })).catch(() => {});

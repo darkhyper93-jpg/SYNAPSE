@@ -2,7 +2,7 @@
 
 **El juego aprende cómo juegas y adapta los desafíos a ti.**
 
-SYNAPSE es un juego de desafíos cognitivos rápidos, variados y adaptativos, pensado para **Android (Google Play)**, móvil y tablet. También funciona en el navegador y como PWA. Usa una estética neón animada sobre fondo oscuro, con una red neuronal viva que reacciona al toque.
+SYNAPSE es un juego de desafíos cognitivos rápidos, variados y adaptativos, pensado para **Android (Google Play)**, móvil y tablet. También funciona en el navegador y como PWA. Usa una estética neón animada sobre fondo oscuro.
 
 > SYNAPSE es un juego. Las puntuaciones reflejan el rendimiento dentro de las tareas de SYNAPSE: no es un test de CI, ni una herramienta médica, ni una medida clínica.
 
@@ -26,11 +26,10 @@ Después abre <http://localhost:8080>.
 
 - **Pensado para tocar**: la pantalla de juego cabe siempre sin scroll, desde un móvil de 360×640 hasta una tablet. El contenido se reduce o se amplía automáticamente.
 - **Animación e interactividad**:
-  - El fondo neuronal reacciona al toque (onda y descargas) y al arrastrar el dedo (estela), con parallax según la inclinación del dispositivo.
   - Los botones tienen efecto de onda y vibración, y las pantallas cambian con un destello circular.
   - Cuenta atrás 3·2·1·GO y puntos que vuelan al marcador.
   - Combos (¡BIEN!, ¡GENIAL!, ¡IMPARABLE!…), llama de racha que crece con multiplicador, y de 1 a 3 estrellas por desafío.
-  - Pantalla completa al subir de nivel o desbloquear un desafío, y nota final (S/A/B/C/D) con sello y confeti.
+  - Pantalla completa al subir de nivel o desbloquear un desafío, y nota final (S/A/B/C/D) con sello.
 - **Repeticiones que enseñan**: MIRROR gira o voltea la figura hasta la respuesta, TRACE dibuja el recorrido real de las esferas, CONTRADICT voltea la carta con la solución y ECHO revela la escena completa.
 - **Gestos**: en FLEX se desliza a izquierda o derecha y el símbolo sale volando.
 - **Mini demo animada** de cada desafío en su tarjeta de presentación, y **tutorial inicial** deslizable de 4 pantallas (se puede volver a ver desde Ajustes).
@@ -67,7 +66,7 @@ Después abre <http://localhost:8080>.
 - **Anti-frustración**: tras 3 errores seguidos baja un poco la dificultad y presenta un desafío de una habilidad fuerte del jugador. El primer error tras un cambio de regla no rompe la racha.
 - **Perfil**: radar de 8 habilidades, índice SYNAPSE, maestría (Principiante → Élite, que solo se gana demostrando rendimiento), evolución en gráficos, historial diario y récords.
 - **Descanso**: con una sesión larga o muchas sesiones en el día se recomienda una pausa.
-- **Accesibilidad**: reducir movimiento, fondo completo, suave o apagado, tamaño de texto, alto contraste, asistencia de color (etiquetas con letras), controles de teclado completos y sonido opcional.
+- **Accesibilidad**: reducir movimiento, tamaño de texto, alto contraste, asistencia de color (etiquetas con letras), controles de teclado completos y sonido opcional.
 - **Idiomas**: español e inglés (detección automática, cambiable en Ajustes).
 - **Persistencia**: `localStorage` detrás de un adaptador (`game/storage.js`), preparado para añadir un backend sin tocar la lógica del juego. El Diario usa una semilla UTC común, lista para un futuro ranking global.
 
@@ -146,15 +145,14 @@ src/
   game/                   playerProfile.js, settings.js, storage.js, audio.js, i18n.js,
                           haptics.js, platform.js (Capacitor/PWA: atrás, pausa, barra de estado)
   components/             ui.js (router, transiciones, botón atrás, ondas táctiles, modales),
-                          background.js (red neuronal interactiva + confeti), charts.js,
-                          fx.js (puntos voladores, combos, cuenta atrás, celebraciones), demos.js
+                          charts.js, fx.js (puntos voladores, combos, cuenta atrás, celebraciones), demos.js
     screens/              onboarding, home, play, results, profile, settings
   data/                   skills.js, visuals.js (formas y colores), strings.js (ES/EN)
   utils/                  rng.js (semillas), math.js, dom.js
   styles/                 fonts.css (fuentes locales), main.css, challenges.css, fx.css
 assets/                   fuentes (OFL) e iconos
 android/                  proyecto nativo Capacitor
-scripts/                  build-web.mjs, make-icons.cjs, store-screenshots.cjs
+scripts/                  build-web.mjs, make-icons.cjs, store-screenshots.cjs, perf/ (mediciones de fluidez)
 store/                    ficha de Play Store, icono, gráfico destacado y capturas
 tests/run.mjs             tests del motor (sin dependencias)
 ```
@@ -168,3 +166,14 @@ npm test
 ```
 
 Comprueban que los 12 generadores producen desafíos válidos en todas las dificultades. También verifican la unicidad de respuestas en lógica y en 3D, la puntuación, que jugadores simulados de distintos niveles converjan a su zona de ~80 % de precisión, la variedad y la anti-frustración de la sesión, que el Diario sea determinista y la cobertura de traducciones.
+
+## Rendimiento
+
+Las animaciones están hechas para que las mueva la GPU (solo `transform` y `opacity`): nada se vuelve a dibujar en cada fotograma, así que la app va fluida incluso en móviles modestos. Para medirlo (con `npm start` corriendo; simula un móvil de gama media con la CPU 4× más lenta):
+
+```bash
+node scripts/perf/measure.cjs http://localhost:8080 nombre 4   # fps, tirones y coste por pantalla → perf-nombre.json
+node scripts/perf/repaints.cjs http://localhost:8080 '?nosw&hq&skipintro'   # qué se repinta continuamente
+node scripts/perf/noncomposited.cjs http://localhost:8080   # animaciones que no puede mover la GPU
+```
+

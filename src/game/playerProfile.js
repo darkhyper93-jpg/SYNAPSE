@@ -65,7 +65,28 @@ export class PlayerProfile {
   }
 
   save() {
+    if (this._saveTimer) {
+      const { idle, t } = this._saveTimer;
+      if (idle != null) globalThis.cancelIdleCallback?.(idle);
+      if (t != null) clearTimeout(t);
+      this._saveTimer = null;
+    }
     storage.save('profile', this.state);
+  }
+
+  /**
+   * Coalesced save for mid-session updates: serialising the whole profile right as the summary
+   * card animates in costs a visible hitch, so it waits for an idle moment (max ~1s).
+   * flush() writes it immediately (app paused / session end).
+   */
+  saveSoon() {
+    if (this._saveTimer) return;
+    const g = globalThis;
+    this._saveTimer = g.requestIdleCallback ? { idle: g.requestIdleCallback(() => this.save(), { timeout: 1000 }) } : { t: setTimeout(() => this.save(), 300) };
+  }
+
+  flush() {
+    if (this._saveTimer) this.save();
   }
 
   reset() {

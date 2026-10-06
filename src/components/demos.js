@@ -186,6 +186,19 @@ const DEMOS = {
   },
 };
 
+// Each demo's markup is parsed once and cloned on every loop (re-parsing the SVG-heavy HTML was
+// periodic main-thread work under the intro card).
+const templates = new Map();
+function demoContent(id, markup) {
+  let tpl = templates.get(id);
+  if (!tpl) {
+    tpl = document.createElement('template');
+    tpl.innerHTML = markup;
+    templates.set(id, tpl);
+  }
+  return tpl.content.cloneNode(true);
+}
+
 /** Build a looping demo element for a challenge type (null if none). */
 export function demoFor(id) {
   const spec = DEMOS[id];
@@ -200,7 +213,7 @@ export function demoFor(id) {
       timers.forEach(clearTimeout);
       return;
     }
-    el.innerHTML = spec.html;
+    el.replaceChildren(demoContent(id, spec.html));
     for (const [ms, fn] of spec.steps) {
       const id2 = setTimeout(() => {
         timers.delete(id2);

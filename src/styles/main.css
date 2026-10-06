@@ -37,10 +37,7 @@ html { font-size: calc(16px * var(--text-scale)); -webkit-text-size-adjust: 100%
 body {
   margin: 0;
   min-height: 100vh;
-  background: radial-gradient(1200px 800px at 15% -10%, #1a0f3d 0%, transparent 60%),
-    radial-gradient(1000px 700px at 110% 10%, #052a3d 0%, transparent 55%),
-    linear-gradient(180deg, var(--bg1) 0%, var(--bg0) 70%);
-  background-attachment: fixed;
+  background: transparent;
   color: var(--text);
   font-family: var(--font-body);
   line-height: 1.45;
@@ -61,50 +58,18 @@ kbd { font-family: var(--font-mono); }
 ::selection { background: rgba(255, 79, 216, 0.35); }
 :focus-visible { outline: 2px solid var(--cyan); outline-offset: 3px; border-radius: 10px; }
 
-/* ---------- animated backdrop ---------- */
-.backdrop { position: fixed; inset: 0; z-index: -3; overflow: hidden; pointer-events: none; transition: opacity 0.8s; }
-.aurora {
-  position: absolute;
-  width: 55vmax;
-  height: 55vmax;
-  border-radius: 50%;
-  filter: blur(90px);
-  opacity: 0.32;
-  mix-blend-mode: screen;
-  animation: drift 26s ease-in-out infinite alternate;
+/* ---------- backdrop ----------
+   The page gradient lives on a fixed layer instead of body (with background-attachment: fixed),
+   so scrolling never repaints it. body stays transparent so this layer shows through. */
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: radial-gradient(1200px 800px at 15% -10%, #1a0f3d 0%, transparent 60%),
+    radial-gradient(1000px 700px at 110% 10%, #052a3d 0%, transparent 55%),
+    linear-gradient(180deg, var(--bg1) 0%, var(--bg0) 70%);
 }
-.aurora.a1 { background: radial-gradient(circle, #ff4fd8 0%, transparent 65%); top: -20vmax; left: -15vmax; }
-.aurora.a2 { background: radial-gradient(circle, #2ee6ff 0%, transparent 65%); bottom: -25vmax; right: -15vmax; animation-duration: 32s; animation-delay: -8s; }
-.aurora.a3 { background: radial-gradient(circle, #8b5cff 0%, transparent 65%); top: 25vh; left: 30vw; width: 40vmax; height: 40vmax; animation-duration: 38s; animation-delay: -16s; opacity: 0.22; }
-@keyframes drift {
-  0% { transform: translate(0, 0) scale(1) rotate(0deg); }
-  50% { transform: translate(8vw, 6vh) scale(1.15) rotate(40deg); }
-  100% { transform: translate(-6vw, 10vh) scale(0.95) rotate(-20deg); }
-}
-.grid-floor {
-  position: absolute;
-  left: -50%;
-  right: -50%;
-  bottom: -10vh;
-  height: 55vh;
-  background-image: linear-gradient(rgba(120, 140, 255, 0.22) 1px, transparent 1px), linear-gradient(90deg, rgba(120, 140, 255, 0.22) 1px, transparent 1px);
-  background-size: 64px 64px;
-  transform: perspective(420px) rotateX(62deg);
-  transform-origin: center top;
-  mask-image: linear-gradient(to bottom, transparent 0%, #000 40%, transparent 100%);
-  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 40%, transparent 100%);
-  animation: floor 6s linear infinite;
-  opacity: 0.45;
-}
-@keyframes floor { to { background-position: 0 64px, 0 0; } }
-#bg { position: fixed; inset: 0; z-index: -2; pointer-events: none; transition: opacity 0.6s; }
-.vignette { position: fixed; inset: 0; z-index: -1; pointer-events: none; background: radial-gradient(ellipse at center, transparent 45%, rgba(2, 3, 10, 0.75) 100%); }
-body[data-bg='calm'] .backdrop { opacity: 0.45; }
-body[data-bg='calm'] .grid-floor,
-body[data-bg='off'] .grid-floor,
-body[data-bg='calm'] .aurora,
-body[data-bg='off'] .aurora { animation-play-state: paused; }
-body[data-bg='off'] .backdrop { opacity: 0.25; }
 
 /* ---------- app / screens ---------- */
 #app {
@@ -143,12 +108,27 @@ body[data-bg='off'] .backdrop { opacity: 0.25; }
 .btn:active { transform: translateY(0) scale(0.98); }
 .btn-primary {
   border: none;
-  background: var(--accent);
-  background-size: 220% 100%;
+  background: transparent;
   color: #070818;
-  animation: shimmer 6s ease-in-out infinite;
+  overflow: hidden;
+  isolation: isolate;
   box-shadow: 0 8px 30px -8px rgba(255, 79, 216, 0.55), 0 0 0 1px rgba(255, 255, 255, 0.15) inset;
 }
+/* the gradient slides back and forth on the compositor (no repaint per frame) */
+.btn-primary::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 220%;
+  z-index: -1;
+  /* same 220%-wide gradient the button used to slide with background-position */
+  background: var(--accent);
+  animation: shimmerX 6s ease-in-out infinite;
+  will-change: transform;
+}
+@keyframes shimmerX { 0%, 100% { transform: translateX(0); } 50% { transform: translateX(-54.5%); } }
 .btn-primary:hover { box-shadow: 0 12px 40px -6px rgba(46, 230, 255, 0.6); }
 @keyframes shimmer { 0%, 100% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } }
 .btn-ghost { background: rgba(255, 255, 255, 0.03); }
@@ -197,40 +177,85 @@ body.no-key-hints .key-hint, body.is-touch .key-hint { display: none; }
   background: rgba(255, 255, 255, 0.06);
 }
 .badge-perfect, .badge-record {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
   border: none;
   color: #120818;
-  background: linear-gradient(100deg, #ffe14d, #ffb02e, #ff4fd8, #ffe14d);
-  background-size: 300% 100%;
-  animation: shimmer 2.5s linear infinite;
   box-shadow: 0 0 24px rgba(255, 176, 46, 0.5);
 }
+/* the 300%-wide gradient slides under the text with a transform (was background-position) */
+.badge-perfect::before, .badge-record::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 300%;
+  z-index: -1;
+  background: linear-gradient(100deg, #ffe14d, #ffb02e, #ff4fd8, #ffe14d);
+  animation: badgeSlide 2.5s linear infinite;
+  will-change: transform;
+}
+@keyframes badgeSlide { 0%, 100% { transform: translateX(0); } 50% { transform: translateX(-66.667%); } }
 
 /* ---------- logo ---------- */
 .logo { display: inline-flex; align-items: center; gap: 0.32em; font-family: var(--font-display); font-weight: 700; line-height: 1; }
 .logo-lg { font-size: clamp(3rem, 10vw, 7rem); }
 .logo-sm { font-size: 1.6rem; }
-.logo-mark { width: 0.82em; height: 0.82em; filter: drop-shadow(0 0 14px rgba(176, 123, 255, 0.6)); }
-.lm-path { stroke-dasharray: 80; animation: dash 3.2s var(--ease-out) infinite; }
-.lm-path.b { animation-delay: 0.6s; }
-@keyframes dash { 0% { stroke-dashoffset: 80; } 45%, 100% { stroke-dashoffset: 0; } }
-.lm-node { transform-box: fill-box; transform-origin: center; animation: node 2.4s ease-in-out infinite; }
-.lm-node:nth-child(2) { animation-delay: 0.3s; }
-.lm-node:nth-child(3) { animation-delay: 0.6s; }
-.lm-node:nth-child(4) { animation-delay: 0.9s; }
+.logo-mark { position: relative; display: inline-block; flex: none; width: 0.82em; height: 0.82em; filter: drop-shadow(0 0 14px rgba(176, 123, 255, 0.6)); }
+/* lines draw themselves: a window slides open while its content counter-slides (compositor only) */
+.lm-reveal { position: absolute; inset: 0; overflow: hidden; animation: lmWipe 3.2s var(--ease-out) infinite; will-change: transform; }
+.lm-reveal-inner { position: absolute; inset: 0; animation: lmWipeInner 3.2s var(--ease-out) infinite; will-change: transform; }
+.lm-reveal svg { display: block; width: 100%; height: 100%; overflow: visible; }
+@keyframes lmWipe { 0% { transform: translateX(-100%); } 45%, 100% { transform: translateX(0); } }
+@keyframes lmWipeInner { 0% { transform: translateX(100%); } 45%, 100% { transform: translateX(0); } }
+.lm-dot {
+  position: absolute;
+  left: calc(var(--x) / 64 * 100%);
+  top: calc(var(--y) / 64 * 100%);
+  width: calc(var(--r) / 32 * 100%);
+  height: calc(var(--r) / 32 * 100%);
+  margin: calc(var(--r) / -64 * 100%) 0 0 calc(var(--r) / -64 * 100%);
+  border-radius: 50%;
+  animation: node 2.4s ease-in-out infinite;
+  animation-delay: var(--d);
+  will-change: transform;
+}
 @keyframes node { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.35); } }
-.logo-word { display: inline-flex; letter-spacing: 0.06em; }
+.logo-word { display: inline-flex; letter-spacing: 0.06em; filter: drop-shadow(0 0 18px rgba(176, 123, 255, 0.35)); }
 .logo-word span {
+  position: relative;
   display: inline-block;
   background: linear-gradient(100deg, #ff4fd8, #b07bff, #2ee6ff, #34f5c5, #ffc53d, #ff4fd8);
   background-size: 600% 100%;
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
+  /* (the glow lives on .logo-word, painted once, instead of a drop-shadow on every letter) */
   animation: letterHue 10s linear infinite, letterFloat 4s ease-in-out infinite;
   animation-delay: calc(var(--i) * -0.35s), calc(var(--i) * 0.12s);
-  filter: drop-shadow(0 0 18px rgba(176, 123, 255, 0.35));
 }
 @keyframes letterHue { to { background-position: 600% 0; } }
+/* Compositor version of the same colour flow (enabled by ui.js once each glyph mask is ready):
+   the glyph is a mask and the gradient strip slides beneath it with a transform, so nothing repaints.
+   Strip tile = 600% of the letter, speed = 3 letters/s and per-letter offset — identical to letterHue. */
+.lw-fill { position: absolute; inset: 0; overflow: hidden; pointer-events: none; display: none; -webkit-mask-size: 100% 100%; mask-size: 100% 100%; -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat; }
+.lw-fill::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 1200%;
+  height: 100%;
+  background: linear-gradient(100deg, #ff4fd8, #b07bff, #2ee6ff, #34f5c5, #ffc53d, #ff4fd8) 0 0 / 50% 100% repeat-x;
+  animation: letterFlow 2s linear infinite;
+  animation-delay: calc(var(--i) * -0.35s);
+  will-change: transform;
+}
+@keyframes letterFlow { to { transform: translateX(-50%); } }
+.logo-word.is-flow span { background: none; animation: letterFloat 4s ease-in-out infinite; animation-delay: calc(var(--i) * 0.12s); }
+.logo-word.is-flow .lw-fill { display: block; }
 @keyframes letterFloat { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-0.05em); } }
 
 /* ---------- HOME ---------- */
@@ -247,15 +272,30 @@ body.no-key-hints .key-hint, body.is-touch .key-hint { display: none; }
   cursor: pointer;
   display: grid;
   place-items: center;
-  background: conic-gradient(from var(--ang, 0deg), #ff4fd8, #b07bff, #2ee6ff, #34f5c5, #ffc53d, #ff4fd8);
-  animation: spinAng 5s linear infinite;
-  box-shadow: 0 0 60px -6px rgba(176, 123, 255, 0.75), 0 0 120px -20px rgba(46, 230, 255, 0.6);
-  transition: transform 0.25s var(--ease-spring), box-shadow 0.3s;
+  isolation: isolate;
+  background: transparent;
+  transition: transform 0.25s var(--ease-spring);
 }
-@property --ang { syntax: '<angle>'; inherits: false; initial-value: 0deg; }
-@keyframes spinAng { to { --ang: 360deg; } }
-.play-btn::before { content: ''; position: absolute; inset: 5px; border-radius: 50%; background: radial-gradient(circle at 30% 25%, #1d2160, #070818 70%); }
-.play-btn:hover { transform: scale(1.06); box-shadow: 0 0 80px -4px rgba(255, 79, 216, 0.85), 0 0 160px -20px rgba(46, 230, 255, 0.8); }
+/* the glow: three pre-painted states cross-faded with opacity (animating box-shadow repaints every frame) */
+.play-glow { position: absolute; inset: 0; border-radius: 50%; z-index: -3; pointer-events: none; transition: opacity 0.3s; box-shadow: 0 0 60px -6px rgba(176, 123, 255, 0.75), 0 0 120px -20px rgba(46, 230, 255, 0.6); }
+.play-glow.is-hover { opacity: 0; box-shadow: 0 0 80px -4px rgba(255, 79, 216, 0.85), 0 0 160px -20px rgba(46, 230, 255, 0.8); }
+.play-glow.is-hot { opacity: 0; box-shadow: 0 0 100px 4px rgba(255, 79, 216, 0.9), 0 0 180px -10px rgba(46, 230, 255, 0.9); }
+.play-btn:hover .play-glow { opacity: 0; }
+.play-btn:hover .play-glow.is-hover { opacity: 1; }
+/* rainbow ring: a conic disc that spins on the compositor (painted once) */
+.play-spin { position: absolute; inset: 0; border-radius: 50%; overflow: hidden; z-index: -2; pointer-events: none; }
+.play-spin::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: conic-gradient(#ff4fd8, #b07bff, #2ee6ff, #34f5c5, #ffc53d, #ff4fd8);
+  animation: spin 5s linear infinite;
+  will-change: transform;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.play-btn::before { content: ''; position: absolute; inset: 5px; border-radius: 50%; background: radial-gradient(circle at 30% 25%, #1d2160, #070818 70%); z-index: -1; }
+.play-btn:hover { transform: scale(1.06); }
 .play-btn:active { transform: scale(0.97); }
 .play-label {
   position: relative;
@@ -295,18 +335,28 @@ body.no-key-hints .key-hint, body.is-touch .key-hint { display: none; }
   transition: transform 0.25s var(--ease-spring), border-color 0.25s, box-shadow 0.25s;
 }
 .daily-card:hover, .snapshot:hover { transform: translateY(-4px); border-color: var(--line-hi); box-shadow: 0 18px 40px -18px rgba(176, 123, 255, 0.6); }
-.daily-card::before {
-  content: '';
+.card-ring {
   position: absolute;
   inset: -1px;
   border-radius: inherit;
   padding: 1px;
-  background: conic-gradient(from var(--ang, 0deg), transparent 0deg, #ffc53d 60deg, #ff4fd8 120deg, transparent 180deg);
-  animation: spinAng 6s linear infinite;
+  overflow: hidden;
   -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
   -webkit-mask-composite: xor;
   mask-composite: exclude;
   pointer-events: none;
+}
+.card-ring::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 160%;
+  aspect-ratio: 1;
+  margin: -80% 0 0 -80%;
+  background: conic-gradient(transparent 0deg, #ffc53d 60deg, #ff4fd8 120deg, transparent 180deg);
+  animation: spin 6s linear infinite;
+  will-change: transform;
 }
 .daily-head { display: flex; align-items: baseline; justify-content: space-between; }
 .daily-tag { font-family: var(--font-display); font-weight: 700; letter-spacing: 0.22em; font-size: 0.82rem; color: #ffc53d; }
@@ -315,7 +365,7 @@ body.no-key-hints .key-hint, body.is-touch .key-hint { display: none; }
 .daily-dots i { width: 22px; height: 6px; border-radius: 4px; background: var(--c); box-shadow: 0 0 10px var(--c); animation: dotPulse 2.2s ease-in-out infinite; animation-delay: calc(var(--i) * 0.15s); }
 @keyframes dotPulse { 0%, 100% { opacity: 0.55; } 50% { opacity: 1; } }
 .daily-sub { color: var(--text); font-weight: 600; }
-.daily-timer { display: block; margin-top: 6px; color: var(--dim); font-family: var(--font-mono); font-size: 0.78rem; }
+.daily-timer { display: block; margin-top: 6px; color: var(--dim); font-family: var(--font-mono); font-size: 0.78rem; font-variant-numeric: tabular-nums; contain: layout paint; }
 .snapshot { display: flex; align-items: center; gap: 12px; }
 .snapshot-radar { width: 150px; flex: none; }
 .snapshot-stats { flex: 1; display: grid; gap: 6px; }
@@ -478,16 +528,21 @@ body.reduce-motion *, body.reduce-motion *::before, body.reduce-motion *::after 
   transition-duration: 0.001ms !important;
   scroll-behavior: auto !important;
 }
-body.reduce-motion .aurora, body.reduce-motion .grid-floor { animation: none !important; }
+/* Touch devices (phones, tablets): a backdrop blur above the animated canvas has to be
+   recomputed by the GPU every single frame. A denser glass tint gives the same frosted look. */
+@media (hover: none), (pointer: coarse) {
+  :root { --glass: rgba(15, 18, 46, 0.84); --glass-hi: rgba(28, 33, 80, 0.9); }
+  *, *::before, *::after { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
+}
+body.is-touch { --glass: rgba(15, 18, 46, 0.84); --glass-hi: rgba(28, 33, 80, 0.9); }
+body.is-touch *, body.is-touch *::before, body.is-touch *::after { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
 /* Modest phones: keep the look, drop the most expensive effects. */
-body.low-power .aurora { animation: none; filter: blur(60px); }
 body.low-power .btn, body.low-power .daily-card, body.low-power .snapshot, body.low-power .glass, body.low-power .pf-hero,
 body.low-power .chart-card, body.low-power .skill-card, body.low-power .set-group, body.low-power .ch-item, body.low-power .res-stat,
 body.low-power .option, body.low-power .hud, body.low-power .mode-chips { backdrop-filter: none; -webkit-backdrop-filter: none; }
 body.reduce-motion .drain i, body.reduce-motion .answer-timer i { transition-duration: var(--dur) !important; }
 body.reduce-motion .auto-bar i { animation-duration: 2.6s !important; }
 body.high-contrast { --line: rgba(220, 228, 255, 0.4); --line-hi: rgba(240, 244, 255, 0.7); --muted: #d6dcff; --dim: #b4bce6; --glass: rgba(8, 10, 28, 0.92); }
-body.high-contrast .aurora, body.high-contrast .grid-floor { display: none; }
 body.high-contrast .shape { filter: none !important; }
 
 /* ---------- responsive ---------- */

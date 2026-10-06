@@ -1,6 +1,6 @@
 // Reusable "game juice": flying points, combo texts, countdowns and full-screen celebrations.
 import { h } from '../utils/dom.js';
-import { app, pushLayer } from './ui.js';
+import { pushLayer } from './ui.js';
 import { haptic } from '../game/haptics.js';
 import { sfx } from '../game/audio.js';
 
@@ -31,12 +31,8 @@ export function flyPoints(from, toEl, text, color = '#3dff9a') {
     ],
     { duration: 720, easing: 'cubic-bezier(.5,0,.3,1)' },
   );
-  return anim.finished.then(() => {
-    chip.remove();
-    toEl.classList.remove('bump');
-    void toEl.offsetWidth;
-    toEl.classList.add('bump');
-  });
+  // (the target bumps when its value updates: callers chain the update on this promise)
+  return anim.finished.then(() => chip.remove());
 }
 
 /** Big centered combo word ("GREAT!") inside a container. */
@@ -47,25 +43,38 @@ export function comboText(container, text, color = '#ffb02e') {
   setTimeout(() => el.remove(), 1100);
 }
 
-/** 3·2·1·GO! countdown (or just GO). Resolves when done. */
-export function countdown(container, { full = true } = {}) {
+/**
+ * 3·2·1·GO! countdown (or just GO). Resolves true when done, or false right away when `signal`
+ * aborts (pause / quit), so no number, beep or vibration is left running behind the pause menu.
+ */
+export function countdown(container, { full = true, signal } = {}) {
   return new Promise((resolve) => {
     const steps = full ? ['3', '2', '1', 'GO!'] : ['GO!'];
     const el = h('div.countdown');
+    let timer = 0;
+    const stop = (done) => {
+      clearTimeout(timer);
+      el.remove();
+      resolve(done === true);
+    };
+    if (signal?.aborted) return resolve(false);
+    signal?.addEventListener('abort', stop, { once: true });
     container.append(el);
     let i = 0;
     const next = () => {
       if (i >= steps.length) {
-        el.remove();
-        resolve();
+        signal?.removeEventListener('abort', stop);
+        stop(true);
         return;
       }
       const s = steps[i++];
-      el.innerHTML = '';
-      el.append(h(`span${s === 'GO!' ? '.is-go' : ''}`, s));
+      // real seconds: 3 · 2 · 1 last one second each, GO! a little less (CSS reads the same --step)
+      const ms = s === 'GO!' ? 650 : 1000;
+      el.style.setProperty('--step', `${ms}ms`);
+      el.replaceChildren(h(`span${s === 'GO!' ? '.is-go' : ''}`, s));
       sfx(s === 'GO!' ? 'go' : 'count');
       haptic(s === 'GO!' ? 'medium' : 'tick');
-      setTimeout(next, s === 'GO!' ? 420 : 520);
+      timer = setTimeout(next, ms);
     };
     next();
   });
@@ -92,7 +101,7 @@ export function celebrate({ kicker = '', title, subtitle = '', color = '#b07bff'
     const el = h(
       'div.celebrate',
       { '--c': color, onclick: close, role: 'dialog' },
-      h('div.cel-rays'),
+      raysCanvas(color),
       h(
         'div.cel-body',
         h('div.cel-icon', icon),
@@ -106,10 +115,43 @@ export function celebrate({ kicker = '', title, subtitle = '', color = '#b07bff'
     topLayer().append(el);
     sfx(sound);
     haptic('levelup');
-    app.background?.confetti(90);
-    app.background?.surge(color);
     setTimeout(close, duration);
   });
+}
+
+/**
+ * Light rays for celebrations, drawn once into a canvas and spun by CSS: a 1024px texture on the
+ * GPU instead of a giant masked conic-gradient layer repainted every frame. Same look as the
+ * original `repeating-conic-gradient(c 28% 0–8deg, transparent 8–22deg)` with a radial mask that
+ * reached 0 at 55% of the farthest corner (62.2vmax): the canvas box is 125vmax (radius 62.5vmax).
+ */
+function raysCanvas(color) {
+  const c = document.createElement('canvas');
+  c.className = 'cel-rays';
+  const S = 1024;
+  c.width = c.height = S;
+  const g = c.getContext('2d');
+  const r = S / 2;
+  const wedge = (from, to) => {
+    g.beginPath();
+    g.moveTo(r, r);
+    g.arc(r, r, r, ((from - 90) * Math.PI) / 180, ((to - 90) * Math.PI) / 180);
+    g.closePath();
+    g.fill();
+  };
+  g.fillStyle = color;
+  g.globalAlpha = 0.28;
+  for (let a = 22; a < 352; a += 22) wedge(a, a + 8);
+  wedge(352, 368); // the repeat's last partial ray and the first one meet at the top: one wedge, no seam
+  g.globalAlpha = 1;
+  g.globalCompositeOperation = 'destination-in';
+  const fade = g.createRadialGradient(r, r, 0, r, r, r);
+  fade.addColorStop(0, 'rgba(0,0,0,1)');
+  fade.addColorStop(62.2 / 62.5, 'rgba(0,0,0,0)');
+  fade.addColorStop(1, 'rgba(0,0,0,0)');
+  g.fillStyle = fade;
+  g.fillRect(0, 0, S, S);
+  return c;
 }
 
 /** Animated star rating (0-3) element; call .play() to reveal stars one by one. */

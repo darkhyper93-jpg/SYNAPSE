@@ -1,6 +1,6 @@
 import { h, countUp } from '../../utils/dom.js';
 import { t } from '../../game/i18n.js';
-import { go, app } from '../ui.js';
+import { go } from '../ui.js';
 import { SKILLS } from '../../data/skills.js';
 import { profile } from '../../game/playerProfile.js';
 import { sfx } from '../../game/audio.js';
@@ -88,14 +88,10 @@ export function resultsScreen({ summary }) {
         stamp.classList.add('is-in');
         sfx('stamp');
         haptic('heavy');
-        if (grade === 'S' || grade === 'A') app.background?.confetti(grade === 'S' ? 160 : 90);
       }, 1450);
       if (sm.isRecord) {
         setTimeout(() => {
           sfx('perfect');
-          const r = scoreEl.getBoundingClientRect();
-          app.background?.burst(r.left + r.width / 2, r.top + r.height / 2, '#ffc53d', 70);
-          app.background?.surge('#ff4fd8');
         }, 1300);
       }
     },

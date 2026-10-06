@@ -116,65 +116,87 @@ export class TraceChallenge extends Challenge {
       return out;
     };
 
+    // Pre-rendered orb sprites (gradient + glow) → no gradient objects or shadowBlur per frame.
+    const pad = Math.ceil(rad * 0.9);
+    const orbSprite = (fill) => {
+      const size = Math.ceil((rad + pad) * 2);
+      const c = document.createElement('canvas');
+      c.width = c.height = size;
+      const g = c.getContext('2d');
+      const m = size / 2;
+      g.shadowColor = fill;
+      g.shadowBlur = rad * 0.8;
+      const grad = g.createRadialGradient(m - rad * 0.3, m - rad * 0.3, rad * 0.1, m, m, rad);
+      grad.addColorStop(0, '#ffffff');
+      grad.addColorStop(1, fill);
+      g.fillStyle = grad;
+      g.beginPath();
+      g.arc(m, m, rad, 0, Math.PI * 2);
+      g.fill();
+      return c;
+    };
+    const ORB = orbSprite('#dfe7ff');
+    const ORB_CUE = orbSprite('#ff4fd8');
+    const half = ORB.width / 2;
+    const font = `700 ${Math.round(rad * 0.95)}px JetBrains Mono, monospace`;
+
     const draw = (f, { cue = 0, hidden = false } = {}) => {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       if (hidden) return;
       // Replay of the real trajectories of the targets (after the answer).
       if (state.trail > 0) {
         const upto = Math.floor(state.trail * r.endFrame);
+        ctx.lineWidth = rad * 0.35;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        ctx.strokeStyle = '#3dff9a';
         r.targets.forEach((ti) => {
-          ctx.lineWidth = rad * 0.35;
-          ctx.lineCap = 'round';
-          ctx.lineJoin = 'round';
           for (let k = 2; k <= upto; k += 2) {
-            const a = k / Math.max(1, upto);
-            ctx.strokeStyle = `rgba(61,255,154,${(0.08 + 0.6 * a).toFixed(3)})`;
+            ctx.globalAlpha = 0.08 + 0.6 * (k / Math.max(1, upto));
             ctx.beginPath();
             ctx.moveTo(r.pos[((k - 2) * r.n + ti) * 2] * S, r.pos[((k - 2) * r.n + ti) * 2 + 1] * S);
             ctx.lineTo(r.pos[(k * r.n + ti) * 2] * S, r.pos[(k * r.n + ti) * 2 + 1] * S);
             ctx.stroke();
           }
         });
+        ctx.globalAlpha = 1;
       }
-      const pts = at(f);
-      pts.forEach((p, i) => {
+      // f may be fractional: positions are interpolated between the precomputed 60 fps frames,
+      // so motion is even at any refresh rate and never repeats or skips a frame.
+      const f0 = Math.floor(f);
+      const mix = f - f0;
+      const b0 = f0 * r.n * 2;
+      const b1 = Math.min(f0 + 1, r.endFrame) * r.n * 2;
+      const cueRing = cue ? `rgba(255,79,216,${(0.35 + 0.35 * Math.sin(cue)).toFixed(2)})` : null;
+      if (state.labels) {
+        ctx.font = font;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+      }
+      for (let i = 0; i < r.n; i++) {
+        const x = (r.pos[b0 + i * 2] + (r.pos[b1 + i * 2] - r.pos[b0 + i * 2]) * mix) * S;
+        const y = (r.pos[b0 + i * 2 + 1] + (r.pos[b1 + i * 2 + 1] - r.pos[b0 + i * 2 + 1]) * mix) * S;
         const isTarget = r.targets.includes(i);
         const sel = state.selected.includes(i);
-        let fill = '#dfe7ff';
-        let ring = null;
-        if (cue && isTarget) {
-          fill = '#ff4fd8';
-          ring = `rgba(255,79,216,${0.35 + 0.35 * Math.sin(cue)})`;
-        }
+        const cueing = cue && isTarget;
+        let ring = cueing ? cueRing : null;
         if (state.reveal) {
           if (isTarget) ring = '#3dff7a';
           if (sel && !isTarget) ring = '#ff4d6d';
         } else if (sel) ring = '#2ee6ff';
-        const g = ctx.createRadialGradient(p.x - rad * 0.3, p.y - rad * 0.3, rad * 0.1, p.x, p.y, rad);
-        g.addColorStop(0, '#ffffff');
-        g.addColorStop(1, fill);
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, rad, 0, Math.PI * 2);
-        ctx.fillStyle = g;
-        ctx.shadowColor = fill;
-        ctx.shadowBlur = rad * 0.8;
-        ctx.fill();
-        ctx.shadowBlur = 0;
+        ctx.drawImage(cueing ? ORB_CUE : ORB, x - half, y - half);
         if (ring) {
           ctx.beginPath();
-          ctx.arc(p.x, p.y, rad * 1.45, 0, Math.PI * 2);
+          ctx.arc(x, y, rad * 1.45, 0, Math.PI * 2);
           ctx.strokeStyle = ring;
           ctx.lineWidth = rad * 0.28;
           ctx.stroke();
         }
         if (state.labels) {
           ctx.fillStyle = '#05060f';
-          ctx.font = `700 ${Math.round(rad * 0.95)}px JetBrains Mono, monospace`;
-          ctx.textAlign = 'center';
-          ctx.textBaseline = 'middle';
-          ctx.fillText(LABELS[i], p.x, p.y + 1);
+          ctx.fillText(LABELS[i], x, y + 1);
         }
-      });
+      }
     };
 
     // 1) Cue phase
@@ -191,11 +213,13 @@ export class TraceChallenge extends Challenge {
     });
     // 2) Motion
     this.setPrompt(t('trace.follow'));
-    const t0 = now();
+    // timed from the vsync-aligned frame timestamps (performance.now() at callback time jitters)
     await new Promise((resolve) => {
-      const loop = () => {
-        const el = now() - t0;
-        const f = Math.min(r.endFrame, Math.floor((el / 1000) * FPS));
+      let tStart = 0;
+      const loop = (ts) => {
+        if (!tStart) tStart = ts;
+        const el = ts - tStart;
+        const f = Math.min(r.endFrame, (el / 1000) * FPS);
         const hidden = r.blink && el >= r.blink.at && el < r.blink.at + r.blink.dur;
         draw(f, { hidden });
         if (f < r.endFrame) this.frame(loop);

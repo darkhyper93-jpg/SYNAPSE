@@ -16,17 +16,30 @@ const PATTERNS = {
   tick: 6,
 };
 
+let lastAt = -1e9;
+let selecting = false;
+
 export function haptic(kind = 'light') {
   if (!settings.get().haptics) return;
+  // One light buzz per gesture: a button's own haptic usually follows the generic tap within a few ms.
+  const soft = kind === 'tick' || kind === 'tap';
+  const at = performance.now();
+  if (soft && at - lastAt < 40) return;
+  lastAt = at;
   try {
     const h = native();
     if (h) {
+      // Android ignores selectionChanged() until selectionStart() has been called once.
+      if (soft && !selecting) {
+        selecting = true;
+        h.selectionStart?.()?.catch?.(() => {});
+      }
       const p =
         kind === 'success' || kind === 'levelup'
           ? h.notification({ type: 'SUCCESS' })
           : kind === 'error'
             ? h.notification({ type: 'ERROR' })
-            : kind === 'tick' || kind === 'tap'
+            : soft
               ? h.selectionChanged()
               : h.impact({ style: kind === 'heavy' ? 'HEAVY' : kind === 'medium' ? 'MEDIUM' : 'LIGHT' });
       p?.catch?.(() => {});

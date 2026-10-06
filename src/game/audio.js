@@ -2,13 +2,16 @@
 import { settings } from './settings.js';
 
 let ctx = null;
-function ac() {
+function create() {
   if (!ctx) {
     const AC = window.AudioContext || window.webkitAudioContext;
-    if (!AC) return null;
-    ctx = new AC();
+    if (AC) ctx = new AC();
   }
-  if (ctx.state === 'suspended') ctx.resume();
+  return ctx;
+}
+function ac() {
+  if (!create()) return null;
+  if (ctx.state === 'suspended') ctx.resume().catch(() => {});
   return ctx;
 }
 
@@ -60,6 +63,25 @@ const SOUNDS = {
 };
 
 /** Called when the app goes to background / comes back. */
+/**
+ * Creating the AudioContext sets up the audio device synchronously (slow on some Android phones).
+ * Do it while the app is idle after start-up, not inside the first PLAY tap.
+ */
+export function warmAudio() {
+  if (!settings.get().sound) return;
+  const idle = window.requestIdleCallback || ((fn) => setTimeout(fn, 1200));
+  idle(
+    () => {
+      try {
+        create(); // the first sound (inside a tap) resumes it
+      } catch {
+        /* audio is best-effort */
+      }
+    },
+    { timeout: 3000 },
+  );
+}
+
 export function suspendAudio() {
   if (ctx && ctx.state === 'running') ctx.suspend().catch(() => {});
 }

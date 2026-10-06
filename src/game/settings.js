@@ -14,7 +14,6 @@ export const DEFAULT_SETTINGS = () => ({
   volume: 0.6,
   haptics: true,
   reducedMotion: prefersReduced(),
-  background: 'full', // full | calm | off
   textScale: 1,
   colorAssist: false, // letter tags on colours
   highContrast: false,

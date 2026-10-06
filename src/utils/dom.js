@@ -47,7 +47,10 @@ export const now = () => performance.now();
 export const isTouch = () => window.matchMedia('(hover: none) and (pointer: coarse)').matches;
 
 /** Animate a number inside an element. */
+const counting = new WeakMap(); // el -> rAF id of its running countUp
+
 export function countUp(el, to, { from = 0, duration = 900, format = (v) => Math.round(v).toLocaleString() } = {}) {
+  cancelAnimationFrame(counting.get(el));
   const start = now();
   const reduce = document.body.classList.contains('reduce-motion');
   if (reduce || duration <= 0) {
@@ -57,10 +60,39 @@ export function countUp(el, to, { from = 0, duration = 900, format = (v) => Math
   const step = () => {
     const t = Math.min(1, (now() - start) / duration);
     const e = 1 - (1 - t) ** 3;
-    el.textContent = format(from + (to - from) * e);
-    if (t < 1) requestAnimationFrame(step);
+    const text = format(from + (to - from) * e);
+    if (el.textContent !== text) el.textContent = text; // only touch the DOM when a digit changes
+    if (t < 1) counting.set(el, requestAnimationFrame(step));
+    else counting.delete(el);
   };
-  requestAnimationFrame(step);
+  counting.set(el, requestAnimationFrame(step));
+}
+
+/**
+ * (Re)start a one-shot CSS animation class without forcing a synchronous reflow:
+ * a running one is restarted through the Web Animations API, and the class removes
+ * itself when the animation ends so the next add starts it fresh.
+ */
+export function replay(el, cls) {
+  if (el.classList.contains(cls)) {
+    const running = (el.getAnimations?.() || []).filter((a) => a.effect?.getTiming().iterations !== Infinity);
+    if (running.length) {
+      running.forEach((a) => {
+        a.cancel();
+        a.play();
+      });
+      return;
+    }
+    el.classList.remove(cls);
+    void el.offsetWidth; // (rare) the class outlived its animation
+  }
+  const done = (e) => {
+    if (e.target !== el) return;
+    el.removeEventListener('animationend', done);
+    el.classList.remove(cls);
+  };
+  el.addEventListener('animationend', done);
+  el.classList.add(cls);
 }
 
 /** Move focus between buttons of a grid with arrow keys. */

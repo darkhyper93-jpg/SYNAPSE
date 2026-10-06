@@ -1,6 +1,6 @@
 // SYNAPSE service worker (web/PWA only — the native app ships its files locally).
 // Network-first so updates arrive immediately; the cache is the offline fallback.
-const CACHE = 'synapse-v2';
+const CACHE = 'synapse-v3';
 const CORE = ['./', 'index.html', 'manifest.webmanifest'];
 
 self.addEventListener('install', (e) => {

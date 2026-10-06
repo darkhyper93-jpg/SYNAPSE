@@ -1,6 +1,6 @@
 import { h } from '../../utils/dom.js';
 import { t } from '../../game/i18n.js';
-import { go, logo, app, toast } from '../ui.js';
+import { go, logo, toast } from '../ui.js';
 import { profile } from '../../game/playerProfile.js';
 import { SKILLS, SKILL_IDS } from '../../data/skills.js';
 import { radarChart } from '../charts.js';
@@ -52,16 +52,17 @@ export function homeScreen() {
     sfx('go');
     haptic('heavy');
     playBtn.classList.add('is-launch');
-    const r = playBtn.getBoundingClientRect();
-    app.background?.burst(r.left + r.width / 2, r.top + r.height / 2, '#b07bff', 60);
-    app.background?.surge('#2ee6ff');
     setTimeout(() => go('play', { mode, warpColor: 'rgba(46,230,255,.5)' }), document.body.classList.contains('reduce-motion') ? 0 : 260);
   };
 
   const playBtn = h(
     'button.play-btn',
     { type: 'button', onclick: play, 'data-autofocus': true },
-    h('span.play-orbit', h('i'), h('i'), h('i'), h('i')),
+    h('span.play-glow'),
+    h('span.play-glow.is-hover'),
+    h('span.play-glow.is-hot'),
+    h('span.play-spin'),
+    h('span.play-orbit', h('span.play-orbit-boost', h('i'), h('i'), h('i'), h('i'))),
     h('span.play-ring'),
     h('span.play-ring.r2'),
     h('span.play-label', t('home.play')),
@@ -83,13 +84,18 @@ export function homeScreen() {
     const s = Math.floor(ms / 1000);
     return `${String(Math.floor(s / 3600)).padStart(2, '0')}:${String(Math.floor((s % 3600) / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
   };
-  const tick = () => (countdown.textContent = t('home.nextDaily', { time: fmt(msToNextDaily()) }));
+  // ticks aligned to the wall-clock second, so the seconds never skip or repeat
+  let timer = 0;
+  const tick = () => {
+    countdown.textContent = t('home.nextDaily', { time: fmt(msToNextDaily()) });
+    timer = setTimeout(tick, 1000 - (Date.now() % 1000) + 8);
+  };
   tick();
-  const timer = setInterval(tick, 1000);
 
   const dailyCard = h(
     'button.daily-card',
     { type: 'button', onclick: () => go('play', { mode: 'daily' }) },
+    h('span.card-ring'),
     h('div.daily-head', h('span.daily-tag', t('home.daily')), h('span.daily-num', `#${daily.number}`)),
     h('div.daily-dots', daily.plan.map((p, i) => h('i', { '--c': p.skill === 'mixed' ? '#ffffff' : SKILLS[p.skill].color, '--i': i }))),
     h('div.daily-sub', dailyDone ? t('home.dailyDone', { score: dailyDone.score.toLocaleString() }) : t('home.dailySub')),
@@ -148,7 +154,7 @@ export function homeScreen() {
     },
     cleanup: () => {
       window.removeEventListener('resize', placeGlider);
-      clearInterval(timer);
+      clearTimeout(timer);
       document.removeEventListener('keydown', onKey);
     },
   };

@@ -145,8 +145,7 @@ export class FlexChallenge extends Challenge {
         return;
       }
       banner.innerHTML = `<div class="rule-banner-inner">${first ? t('flex.rule') : t('flex.newRule')}</div><div class="rule-map">${this.mappingHTML(rule)}</div>`;
-      banner.classList.remove('is-on');
-      void banner.offsetWidth;
+      // (is-on was already removed 200ms ago and the inner banner is new, so no reflow is needed to restart it)
       banner.classList.add('is-on');
       if (!first) this.hooks?.sound?.('rule');
       legend.innerHTML = p.legend ? this.mappingHTML(rule) : '';

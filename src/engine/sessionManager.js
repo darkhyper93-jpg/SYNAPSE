@@ -224,7 +224,7 @@ export class SessionManager {
     };
     this.lastEventCount = this.events.length;
     this.history.push(summary);
-    this.profile.save();
+    this.profile.saveSoon();
     return summary;
   }
 

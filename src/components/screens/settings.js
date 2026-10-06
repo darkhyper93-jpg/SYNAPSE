@@ -1,6 +1,6 @@
 import { h } from '../../utils/dom.js';
 import { t, setLang } from '../../game/i18n.js';
-import { go, confirmDialog, toast, app, pushLayer } from '../ui.js';
+import { go, confirmDialog, toast, pushLayer } from '../ui.js';
 import { settings, applySettings } from '../../game/settings.js';
 import { profile } from '../../game/playerProfile.js';
 import { sfx } from '../../game/audio.js';
@@ -36,7 +36,6 @@ export function settingsScreen() {
     settings.set(patch);
     applySettings(settings.get());
     if ('lang' in patch) setLang(patch.lang);
-    if ('background' in patch) app.background?.setMode(patch.background);
     if (rerender) go('settings');
   };
 
@@ -105,7 +104,6 @@ export function settingsScreen() {
       h('div.set-row', h('div.set-text', h('b', t('set.volume'))), volume),
     ),
     h('section.set-group', h('h3', t('set.visual')),
-      segmented('background', t('set.background'), [['full', t('set.bgFull')], ['calm', t('set.bgCalm')], ['off', t('set.bgOff')]]),
       toggle('reducedMotion', t('set.motion'), t('set.motionDesc')),
       segmented('textScale', t('set.text'), [[0.9, 'S'], [1, 'M'], [1.15, 'L'], [1.3, 'XL']]),
       toggle('highContrast', t('set.contrast'), t('set.contrastDesc')),
