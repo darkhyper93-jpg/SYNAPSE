@@ -4,7 +4,7 @@ import { go, logo, toast } from '../ui.js';
 import { profile } from '../../game/playerProfile.js';
 import { SKILLS, SKILL_IDS } from '../../data/skills.js';
 import { radarChart } from '../charts.js';
-import { dailyInfo, msToNextDaily } from '../../engine/daily.js';
+import { dailyInfo, dailyNumber, msToNextDaily } from '../../engine/daily.js';
 import { storage } from '../../game/storage.js';
 import { sfx } from '../../game/audio.js';
 import { haptic } from '../../game/haptics.js';
@@ -14,8 +14,7 @@ const MODES = ['quick', 'standard', 'challenge'];
 export function homeScreen() {
   let mode = storage.load('lastMode', 'quick');
   if (!MODES.includes(mode)) mode = 'quick';
-  const daily = dailyInfo();
-  const dailyDone = profile.state.daily[daily.number];
+  let daily = dailyInfo();
   const st = profile.state.stats;
   const played = profile.playedSkills().length > 0;
 
@@ -46,13 +45,14 @@ export function homeScreen() {
 
   // PLAY: charges while pressed, then launches with a burst.
   let launching = false;
+  let launchTimer = 0;
   const play = () => {
     if (launching) return;
     launching = true;
     sfx('go');
     haptic('heavy');
     playBtn.classList.add('is-launch');
-    setTimeout(() => go('play', { mode, warpColor: 'rgba(46,230,255,.5)' }), document.body.classList.contains('reduce-motion') ? 0 : 260);
+    launchTimer = setTimeout(() => go('play', { mode, warpColor: 'rgba(46,230,255,.5)' }), document.body.classList.contains('reduce-motion') ? 0 : 260);
   };
 
   const playBtn = h(
@@ -85,8 +85,23 @@ export function homeScreen() {
     return `${String(Math.floor(s / 3600)).padStart(2, '0')}:${String(Math.floor((s % 3600) / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
   };
   // ticks aligned to the wall-clock second, so the seconds never skip or repeat
+  const dailyNum = h('span.daily-num');
+  const dailyDots = h('div.daily-dots');
+  const dailySub = h('div.daily-sub');
+  const fillDaily = () => {
+    const done = profile.state.daily[daily.number];
+    dailyNum.textContent = `#${daily.number}`;
+    dailyDots.replaceChildren(...daily.plan.map((p, i) => h('i', { '--c': p.skill === 'mixed' ? '#ffffff' : SKILLS[p.skill].color, '--i': i })));
+    dailySub.textContent = done ? t('home.dailyDone', { score: done.score.toLocaleString() }) : t('home.dailySub');
+  };
+  fillDaily();
   let timer = 0;
   const tick = () => {
+    // a new day began while the app sat open (or in the background): show the new daily
+    if (dailyNumber() !== daily.number) {
+      daily = dailyInfo();
+      fillDaily();
+    }
     countdown.textContent = t('home.nextDaily', { time: fmt(msToNextDaily()) });
     timer = setTimeout(tick, 1000 - (Date.now() % 1000) + 8);
   };
@@ -96,9 +111,9 @@ export function homeScreen() {
     'button.daily-card',
     { type: 'button', onclick: () => go('play', { mode: 'daily' }) },
     h('span.card-ring'),
-    h('div.daily-head', h('span.daily-tag', t('home.daily')), h('span.daily-num', `#${daily.number}`)),
-    h('div.daily-dots', daily.plan.map((p, i) => h('i', { '--c': p.skill === 'mixed' ? '#ffffff' : SKILLS[p.skill].color, '--i': i }))),
-    h('div.daily-sub', dailyDone ? t('home.dailyDone', { score: dailyDone.score.toLocaleString() }) : t('home.dailySub')),
+    h('div.daily-head', h('span.daily-tag', t('home.daily')), dailyNum),
+    dailyDots,
+    dailySub,
     countdown,
   );
 
@@ -147,6 +162,7 @@ export function homeScreen() {
     onShow: () => requestAnimationFrame(() => requestAnimationFrame(placeGlider)),
     // Android back on the home screen: press twice to exit.
     onBack: () => {
+      if (launching) return true; // PLAY is already on its way
       if (Date.now() - backArmed < 2000) return false;
       backArmed = Date.now();
       toast(t('home.backExit'), { icon: '↩', duration: 1800 });
@@ -155,6 +171,7 @@ export function homeScreen() {
     cleanup: () => {
       window.removeEventListener('resize', placeGlider);
       clearTimeout(timer);
+      clearTimeout(launchTimer); // another button won the race: PLAY must not start on top of it
       document.removeEventListener('keydown', onKey);
     },
   };

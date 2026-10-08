@@ -124,6 +124,8 @@ export class MirrorChallenge extends Challenge {
           const other = cur === COLORS[r.colors[0]].hex ? COLORS[r.colors[1]].hex : COLORS[r.colors[0]].hex;
           c.style.transition = 'background .45s, box-shadow .45s';
           c.style.setProperty('--c', other);
+          // colour assist: the letter follows the colour, or the replay contradicts the answer
+          if (c.dataset.glyph) c.dataset.glyph = c.dataset.glyph === '●' ? '■' : '●';
         });
         this.hooks?.sound?.('whoosh');
         await this.wait(550);

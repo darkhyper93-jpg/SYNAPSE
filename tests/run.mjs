@@ -6,7 +6,7 @@ import { storage, MemoryAdapter } from '../src/game/storage.js';
 
 storage.use(new MemoryAdapter());
 
-const { CHALLENGE_TYPES, createChallenge, generateMemoryChallenge, generatePatternChallenge } = await import('../src/engine/challengeGenerator.js');
+const { CHALLENGE_TYPES, TYPES_BY_ID, isUnlocked, createChallenge, generateMemoryChallenge, generatePatternChallenge } = await import('../src/engine/challengeGenerator.js');
 const { RNG } = await import('../src/utils/rng.js');
 const { DifficultyManager } = await import('../src/engine/difficultyManager.js');
 const { trialPoints } = await import('../src/engine/scoreSystem.js');
@@ -203,6 +203,90 @@ test('first error after a rule switch does not break the streak', () => {
   assert(sm.streak === 2, `streak ${sm.streak}`);
 });
 
+test('a paused (discarded) challenge gives back its points and streak, never the clock', () => {
+  const p = freshProfile();
+  p.reset();
+  const sm = new SessionManager({ mode: 'quick', profile: p, seed: 3 }).startSession();
+  const plan = sm.next();
+  sm.onTrial({ correct: true, weight: 1, rt: 400 }, plan.challenge);
+  sm.onTrial({ correct: true, weight: 1, rt: 400 }, plan.challenge);
+  assert(sm.score > 0 && sm.streak === 2);
+  sm.discardCurrent({ elapsedMs: 9000, seen: true });
+  assert(sm.score === 0 && sm.streak === 0 && sm.bestStreak === 0, `score ${sm.score} streak ${sm.streak}`);
+  assert(sm.activeMs === 9000, 'time already played still counts');
+  assert(sm.next(), 'a fresh challenge follows');
+});
+test('quit without saving leaves the profile exactly as before', () => {
+  const p = freshProfile();
+  p.reset();
+  const before = JSON.stringify(p.state);
+  const sm = new SessionManager({ mode: 'quick', profile: p, seed: 5 }).startSession();
+  const plan = sm.next();
+  sm.completeChallenge(plan.challenge, { ...plan.challenge.getResult(), accuracy: 1, trials: 4, correct: 4, points: 300, duration: 20000, speedRatio: 0.8 });
+  assert(JSON.stringify(p.state) !== before, 'the challenge changed the profile');
+  sm.abandon();
+  assert(JSON.stringify(p.state) === before, 'abandon restores it');
+});
+test('play time excludes pauses', () => {
+  const p = freshProfile();
+  const sm = new SessionManager({ mode: 'quick', profile: p, seed: 9 }).startSession();
+  sm.t0 -= 3_660_000; // started 61 minutes ago:
+  sm.pauseClock();
+  sm.pausedAt -= 3_600_000; // one minute of play, then an hour in the background
+  sm.resumeClock();
+  const ms = sm.playedMs();
+  assert(ms >= 59_000 && ms < 62_000, `played ${ms}`);
+});
+test('LEVEL UP fires once per level, not every time a rating wobbles over a boundary', () => {
+  const p = freshProfile();
+  p.reset();
+  const s = p.skill('memory');
+  s.plays = 10;
+  const res = (difficulty, accuracy) => ({ skill: 'memory', type: 'echo', difficulty, accuracy, speedRatio: 1, trials: 4, correct: 3, points: 100 });
+  let ups = 0;
+  for (let i = 0; i < 40; i++) ups += p.recordChallenge(res(i % 2 ? 0.62 : 0.3, 0.8)).primary.levelUp ? 1 : 0;
+  assert(ups <= 2, `celebrated ${ups} times`);
+});
+test('combined challenges stay unlocked once earned', () => {
+  const p = freshProfile();
+  p.reset();
+  const sm = new SessionManager({ mode: 'quick', profile: p, seed: 11 }).startSession();
+  p.skill('attention').rating = 45;
+  const plan = sm.next();
+  sm.completeChallenge(plan.challenge, { ...plan.challenge.getResult(), accuracy: 0.8, trials: 4, correct: 3, points: 100, duration: 20000, speedRatio: 1 });
+  p.skill('attention').rating = 30;
+  assert(isUnlocked(TYPES_BY_ID.dual, p), 'DUAL must not re-lock');
+});
+test('a replayed Daily scores but no longer moves ratings', () => {
+  const p = freshProfile();
+  p.reset();
+  const n = dailyInfo().number;
+  p.state.daily[n] = { score: 1000, accuracy: 0.8, date: '2026-10-07' };
+  const sm = new SessionManager({ mode: 'daily', profile: p }).startSession();
+  const plan = sm.next();
+  const before = p.rating(plan.skill);
+  sm.completeChallenge(plan.challenge, { ...plan.challenge.getResult(), accuracy: 1, trials: 4, correct: 4, points: 500, duration: 20000, speedRatio: 0.7 });
+  assert(p.rating(plan.skill) === before, 'rating unchanged');
+  assert(sm.score > 0, 'still scores');
+});
+test('corrupt or partial saved profiles load with defaults instead of crashing', () => {
+  storage.save('profile', { version: 1, stats: { sessions: null, playMs: 'x' }, skills: { memory: { rating: null, recent: 'no' } }, history: [null, { t: 1, index: 3 }], daily: { 5: null, 6: { score: 10 } }, days: 7, best: { quick: NaN } });
+  const p = new PlayerProfile(PlayerProfile.loadState());
+  assert(p.state.stats.sessions === 0 && p.state.stats.playMs === 0);
+  assert(p.rating('memory') === 0 && Array.isArray(p.skill('memory').recent));
+  assert(p.state.history.length === 1 && Object.keys(p.state.daily).join() === '6' && p.state.best.quick === 0);
+  storage.save('profile', { version: 99, stats: { sessions: 7 } });
+  PlayerProfile.loadState();
+  assert(storage.load('profile.backup', null)?.stats?.sessions === 7, 'an unknown version is backed up, not lost');
+  storage.remove('profile');
+  storage.remove('profile.backup');
+});
+test('a non-numeric difficulty never breaks generation (clamp is NaN-safe)', () => {
+  const sm = new SessionManager({ mode: 'practice', typeId: 'echo', difficulty: NaN, profile: freshProfile() }).startSession();
+  assert(sm.forcedDifficulty === null);
+  assert(createChallenge('echo', NaN, { rng: new RNG('nan') }).validate());
+});
+
 console.log('\nDaily challenge');
 test('same day → same plan and same generated content', () => {
   const date = new Date(Date.UTC(2026, 9, 6, 12));
@@ -215,6 +299,35 @@ test('same day → same plan and same generated content', () => {
   const strip = (c) => JSON.stringify(c.rounds || c.params, (k, v) => (typeof v === 'function' ? undefined : v instanceof Float32Array ? Array.from(v.slice(0, 20)) : v));
   assert(strip(ca) === strip(cb), 'content must match');
   assert(dailyInfo(new Date(Date.UTC(2026, 9, 7))).number === a.number + 1);
+});
+test('a pause during the Daily never changes the remaining puzzles', () => {
+  const content = (sm) => JSON.stringify(sm.next().challenge.rounds || sm.current.challenge.params, (k, v) => (v instanceof Float32Array ? Array.from(v.slice(0, 20)) : v));
+  const a = new SessionManager({ mode: 'daily', profile: freshProfile() }).startSession();
+  const b = new SessionManager({ mode: 'daily', profile: freshProfile() }).startSession();
+  const first = content(a);
+  assert(first === content(b), 'same first puzzle for everyone');
+  b.discardCurrent({ seen: false }); // paused on the intro card: same puzzle again
+  assert(content(b) === first);
+  b.discardCurrent({ seen: true }); // paused mid-puzzle: a different one for this slot only
+  assert(content(b) !== first);
+  for (const sm of [a, b]) sm.completeChallenge(sm.current.challenge, { ...sm.current.challenge.getResult(), accuracy: 1, trials: 3, correct: 3, points: 10, duration: 1000, speedRatio: 1 });
+  assert(content(a) === content(b), 'the next slot is the same for everyone again');
+});
+test('every skill and challenge shows up in the Daily over a few weeks', () => {
+  const seen = new Set();
+  for (let d = 0; d < 42; d++) dailyInfo(new Date(Date.UTC(2026, 9, 1 + d))).plan.forEach((x) => seen.add(x.typeId).add(x.skill));
+  CHALLENGE_TYPES.forEach((T) => assert(seen.has(T.meta.id), `${T.meta.id} never in the Daily`));
+  SKILL_IDS.forEach((s) => assert(seen.has(s), `${s} never in the Daily`));
+});
+test('FOCUS: the target right after anything that looks like the exception is held back', () => {
+  for (let k = 0; k < 300; k++) {
+    const c = createChallenge('focus', 0.55 + (k % 10) * 0.045, { rng: new RNG(`fx${k}`) });
+    const { items, exception } = c.params;
+    items.forEach((it, i) => {
+      const p = items[i - 1];
+      assert(!(it.respond && p && p.shape === exception.shape && p.color === exception.color), `seed fx${k} item ${i}`);
+    });
+  }
 });
 
 console.log('\ni18n');
@@ -250,7 +363,7 @@ test('dynamic keys: every skill, challenge, colour, shape, mirror op', async () 
   SKILL_IDS.forEach((s) => need.push(`skill.${s}`, `skill.${s}.short`, `skill.${s}.desc`));
   CHALLENGE_TYPES.forEach((T) => ['name', 'tag', 'how', 'controls'].forEach((k) => need.push(`ch.${T.meta.id}.${k}`)));
   const { COLOR_IDS, SHAPE_IDS } = await import('../src/data/visuals.js');
-  COLOR_IDS.forEach((c) => need.push(`color.${c}`, `glyph.${c}`));
+  COLOR_IDS.forEach((c) => need.push(`color.${c}`, `glyph.${c}`, `adj.${c}`, `adj.${c}.f`));
   SHAPE_IDS.forEach((s) => need.push(`shape.${s}`));
   const missing = need.filter((k) => !STRINGS.en[k]);
   assert(!missing.length, missing.join(', '));

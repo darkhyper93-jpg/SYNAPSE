@@ -343,7 +343,7 @@ body.no-key-hints .option-key, body.is-touch .option-key { display: none; }
 .rule-banner-inner { font-family: var(--font-display); font-weight: 700; font-size: clamp(2rem, 7vw, 3.4rem); letter-spacing: 0.2em; color: #fff; text-shadow: 0 0 30px var(--skill), -3px 0 #ff4fd8, 3px 0 #2ee6ff; animation: bannerIn 0.5s var(--ease-spring) both, bannerBlur 0.5s var(--ease-spring) both; }
 @keyframes bannerIn { from { transform: scale(1.6); opacity: 0; } }
 @keyframes bannerBlur { from { filter: blur(10px); } }
-.rule-map { display: flex; align-items: center; gap: 18px; font-size: 1.3rem; font-weight: 700; padding: 10px 18px; border-radius: 16px; border: 1px solid var(--line-hi); background: rgba(255, 255, 255, 0.04); }
+.rule-map { display: flex; align-items: center; gap: clamp(8px, 3vw, 18px); max-width: calc(100% - 16px); font-size: 1.3rem; font-weight: 700; padding: 10px clamp(10px, 3vw, 18px); border-radius: 16px; border: 1px solid var(--line-hi); background: rgba(255, 255, 255, 0.04); }
 .rule-map.is-cue-color { border-color: #2ee6ff; box-shadow: 0 0 20px -6px #2ee6ff; }
 .rule-map.is-cue-shape { border-color: #ff4fd8; box-shadow: 0 0 20px -6px #ff4fd8; }
 .map-dim { font-size: 0.72rem; letter-spacing: 0.2em; color: var(--muted); text-transform: uppercase; }

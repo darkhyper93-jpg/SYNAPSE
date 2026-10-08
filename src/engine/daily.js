@@ -1,9 +1,10 @@
 // DAILY — same seed for everybody on the same UTC day (ready for a future global leaderboard).
 import { RNG } from '../utils/rng.js';
+import { SKILL_IDS } from '../data/skills.js';
 import { typesForSkill } from './challengeGenerator.js';
 
 const EPOCH = Date.UTC(2026, 0, 1);
-const DAILY_SKILLS = ['memory', 'reaction', 'logic', 'spatial', 'attention', 'decision'];
+const DAILY_SKILLS = 6; // skills trained per day: every skill and challenge rotates through the week
 const MIXED = ['nexus', 'dual'];
 // Fixed difficulty ramp: comparable between players and days.
 const RAMP = [0.3, 0.36, 0.42, 0.48, 0.54, 0.6, 0.62];
@@ -17,7 +18,8 @@ export function dailyInfo(date = new Date()) {
   const number = dailyNumber(date);
   const seed = `synapse-daily-${number}`;
   const rng = new RNG(seed);
-  const plan = DAILY_SKILLS.map((skill, i) => {
+  const skills = rng.sample(SKILL_IDS, DAILY_SKILLS).sort((a, b) => SKILL_IDS.indexOf(a) - SKILL_IDS.indexOf(b));
+  const plan = skills.map((skill, i) => {
     const types = typesForSkill(skill).filter((T) => !T.meta.minRating);
     return { typeId: rng.pick(types).meta.id, difficulty: RAMP[i], skill };
   });

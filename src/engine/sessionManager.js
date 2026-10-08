@@ -28,13 +28,17 @@ export const MIX = {
 
 // Rough per-challenge overhead (intro + feedback) counted toward session time.
 const OVERHEAD_MS = 2500;
+// Timed sessions don't open a new challenge in the last seconds (the clock would sit at 0:00).
+const MIN_SLICE_MS = 15_000;
+
+const clock = () => (globalThis.performance?.now ? performance.now() : Date.now());
 
 export class SessionManager {
   constructor({ mode = 'quick', profile, settings = {}, seed, typeId, difficulty } = {}) {
     this.mode = MODES[mode] || MODES.quick;
     this.practiceType = this.mode.id === 'practice' && TYPES_BY_ID[typeId] ? typeId : null;
     if (this.mode.id === 'practice' && !this.practiceType) this.mode = MODES.quick;
-    this.forcedDifficulty = typeof difficulty === 'number' ? clamp(difficulty) : null;
+    this.forcedDifficulty = Number.isFinite(difficulty) ? clamp(difficulty) : null;
     this.profile = profile;
     this.settings = settings;
     this.dm = new DifficultyManager(profile);
@@ -46,6 +50,12 @@ export class SessionManager {
     this.index = 0;
     this.activeMs = 0;
     this.startedAt = Date.now();
+    this.t0 = clock(); // monotonic: play time never jumps with the wall clock
+    this.pausedMs = 0;
+    this.pausedAt = null;
+    this.rerolls = 0;
+    // "Quit without saving" puts the profile back exactly as it was
+    this.profileBefore = JSON.stringify(this.profile.state);
     this.score = 0;
     this.streak = 0;
     this.bestStreak = 0;
@@ -56,15 +66,53 @@ export class SessionManager {
     this.forceComfort = false;
     this.events = []; // level ups, unlocks
     this.unlockedBefore = new Set(CHALLENGE_TYPES.filter((T) => isUnlocked(T, this.profile)).map((T) => T.meta.id));
+    this.persistUnlocks(this.unlockedBefore);
     this.firstSession = this.profile.state.stats.sessions === 0;
     this.plan = this.daily ? this.daily.plan : null;
+    // a replayed Daily has known answers: it still scores, but no longer moves the ratings
+    this.rated = !(this.daily && this.profile.state.daily[this.daily.number]);
     return this;
+  }
+
+  persistUnlocks(ids) {
+    const u = (this.profile.state.unlocked ||= {});
+    for (const id of ids) if (TYPES_BY_ID[id]?.meta.minRating) u[id] = true;
+  }
+
+  // ---------- pause ----------
+  pauseClock() {
+    if (this.pausedAt == null) this.pausedAt = clock();
+  }
+
+  resumeClock() {
+    if (this.pausedAt == null) return;
+    this.pausedMs += clock() - this.pausedAt;
+    this.pausedAt = null;
+  }
+
+  /**
+   * The current challenge was interrupted (pause, app in background): it is thrown away, so is
+   * everything it earned. The time already spent in it still counts, so the clock never rewinds.
+   * seen: the player already saw its content (a Daily then deals a different one for this slot).
+   */
+  discardCurrent({ elapsedMs = 0, seen = false } = {}) {
+    if (!this.current) return;
+    Object.assign(this, this.slotState);
+    this.activeMs += Math.max(0, elapsedMs);
+    if (seen) this.rerolls += 1;
+    this.current = null;
+  }
+
+  /** Quit without saving: undo every profile change made during this session. */
+  abandon() {
+    this.profile.state = JSON.parse(this.profileBefore);
+    this.profile.save();
   }
 
   // ---------- flow ----------
   isFinished() {
     if (this.mode.count) return this.index >= this.mode.count;
-    return this.activeMs >= this.mode.duration;
+    return this.activeMs >= this.mode.duration - MIN_SLICE_MS;
   }
 
   progress() {
@@ -75,6 +123,16 @@ export class SessionManager {
   /** Returns { challenge, skill, typeId, difficulty } or null when the session is over. */
   next() {
     if (this.isFinished()) return null;
+    // what discardCurrent() restores if this challenge gets interrupted
+    this.slotState = {
+      score: this.score,
+      streak: this.streak,
+      bestStreak: this.bestStreak,
+      errorRun: this.errorRun,
+      frustrated: this.frustrated,
+      forceComfort: this.forceComfort,
+      easeNext: this.easeNext,
+    };
     let typeId;
     let skill;
     let difficulty;
@@ -155,7 +213,9 @@ export class SessionManager {
   }
 
   generateChallenge(typeId, difficulty) {
-    return createChallenge(typeId, difficulty, { rng: this.rng.fork(`c${this.index}`), settings: this.settings });
+    // Daily slots are seeded by position: the same puzzles for everyone, whatever happened before
+    const rng = this.daily ? new RNG(`${this.daily.seed}:c${this.index}${this.rerolls ? `:r${this.rerolls}` : ''}`) : this.rng.fork(`c${this.index}`);
+    return createChallenge(typeId, difficulty, { rng, settings: this.settings });
   }
 
   // ---------- scoring ----------
@@ -186,8 +246,8 @@ export class SessionManager {
     const { bonus, perfect } = challengeBonus(result, this.mode.scoreMult);
     this.score += bonus;
     result.points += bonus;
-    const diff = this.dm.update(result.skill, result, this.mode.adapt);
-    const rec = this.profile.recordChallenge(result);
+    const diff = this.dm.update(result.skill, result, this.rated ? this.mode.adapt : 'none');
+    const rec = this.profile.recordChallenge(result, { rate: this.rated });
 
     // Anti-frustration: ease the skill slightly and switch to a comfortable challenge.
     let eased = false;
@@ -205,8 +265,11 @@ export class SessionManager {
       this.unlockedBefore.add(T.meta.id);
       this.events.push({ type: 'unlock', typeId: T.meta.id });
     });
+    this.persistUnlocks(unlockedNow.map((T) => T.meta.id));
 
     this.activeMs += (result.duration || 0) + OVERHEAD_MS;
+    this.current = null;
+    this.rerolls = 0;
     this.recentSkills.push(result.skill);
     this.recentTypes.push(result.type);
     this.index += 1;
@@ -229,10 +292,17 @@ export class SessionManager {
   }
 
   /** Build the session summary and persist it. */
-  finish() {
+  /** Play time so far, pauses excluded (monotonic clock). */
+  playedMs() {
+    return Math.max(0, Math.round((this.pausedAt ?? clock()) - this.t0 - this.pausedMs));
+  }
+
+  summarize() {
     const h = this.history;
     const trials = h.reduce((s, x) => s + x.trials, 0);
     const correct = h.reduce((s, x) => s + x.correct, 0);
+    // the same per-challenge accuracy the summary cards and the timeline show, weighted by length
+    const accuracy = trials ? h.reduce((s, x) => s + x.accuracy * x.trials, 0) / trials : 0;
     const reactionRts = h.filter((x) => x.reactionLike && x.avgRt).map((x) => x.avgRt);
     const skills = {};
     for (const x of h) {
@@ -249,10 +319,10 @@ export class SessionManager {
       challenges: h.length,
       trials,
       correct,
-      accuracy: trials ? correct / trials : 0,
+      accuracy,
       avgReactionRt: reactionRts.length ? mean(reactionRts) : null,
       bestStreak: this.bestStreak,
-      durationMs: Date.now() - this.startedAt,
+      durationMs: this.playedMs(),
       skills: Object.values(skills),
       events: this.events,
       perfects: h.filter((x) => x.perfect).length,
@@ -260,6 +330,23 @@ export class SessionManager {
       dailyNumber: this.daily?.number,
       typeId: this.practiceType,
     };
+    return summary;
+  }
+
+  /**
+   * What recordSession() needs, small enough to store on every pause: if Android kills the app in
+   * the background, the challenges already played are recorded as a finished session on next start.
+   */
+  pendingRecord() {
+    if (!this.history.length) return null;
+    const { mode, score, challenges, accuracy, avgReactionRt, bestStreak, durationMs, dailyNumber, typeId } = this.summarize();
+    return { mode, score, challenges, accuracy, avgReactionRt, bestStreak, durationMs, dailyNumber, typeId };
+  }
+
+  finish() {
+    this.resumeClock();
+    const h = this.history;
+    const summary = this.summarize();
     const { isRecord, prevBest } = this.profile.recordSession(summary);
     summary.isRecord = isRecord && h.length > 0 && !this.practiceType;
     summary.prevBest = prevBest;

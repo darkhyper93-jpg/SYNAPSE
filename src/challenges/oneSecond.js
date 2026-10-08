@@ -64,19 +64,21 @@ export class OneSecondChallenge extends Challenge {
       Object.assign(round, { corner, target: it, options: rng.shuffle([it, ...lures]) });
     } else if (kind === 'count') {
       const color = rng.pick(colors);
-      // Keep the answer small enough to subitize/estimate.
+      const other = () => rng.pick(colors.filter((c) => c !== color));
+      // "Items" are the symbols: a digit never wears the asked colour, so there is one answer.
+      items.forEach((x) => x.digit && x.color === color && (x.color = other()));
+      // Keep the answer small enough to subitize/estimate (and sometimes none at all).
+      const want = rng.chance(0.1) ? 0 : rng.int(1, byDiff(d, 3, 5));
       let have = items.filter((x) => x.color === color);
-      if (!have.length) {
-        items[items.length - 1].color = color;
-        have = [items[items.length - 1]];
+      if (!have.length && want) {
+        const x = rng.pick(items.filter((i) => i.shape));
+        x.color = color;
+        have = [x];
       }
-      const want = rng.int(1, byDiff(d, 3, 5));
-      while (have.length > want) {
-        const x = have.pop();
-        x.color = rng.pick(colors.filter((c) => c !== color));
-      }
+      while (have.length > want) have.pop().color = other();
       const answer = items.filter((x) => x.color === color).length;
-      const start = Math.max(0, answer - rng.int(0, 2));
+      // the right number can sit on any of the four buttons
+      const start = answer - rng.int(0, Math.min(3, answer));
       Object.assign(round, { color, answer, options: [start, start + 1, start + 2, start + 3] });
     } else if (kind === 'digit') {
       const present = items.filter((x) => x.digit).map((x) => x.digit);
@@ -177,7 +179,7 @@ export class OneSecondChallenge extends Challenge {
       this.stage.append(mini);
       await this.askOptions({ options: r.options.map((o) => symbolOption(o, this.settings)), correctValue: `${r.target.shape}|${r.target.color}` });
     } else if (r.kind === 'count') {
-      this.setPrompt(t('onesecond.count', { color: `<b style="color:${COLORS[r.color].hex}">${t(`color.${r.color}`)}</b>` }));
+      this.setPrompt(t('onesecond.count', { color: `<b style="color:${COLORS[r.color].hex}">${t(`adj.${r.color}`)}</b>` }));
       await this.askOptions({ options: r.options.map((v) => ({ value: v, label: String(v), html: `<span class="big-num">${v}</span>` })), correctValue: r.answer });
     } else if (r.kind === 'digit') {
       this.setPrompt(t('onesecond.digit'));

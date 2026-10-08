@@ -3,9 +3,17 @@ import { storage } from './storage.js';
 const prefersReduced = () =>
   typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
 
+// First supported language in the player's preference list. Spain's co-official languages
+// (Catalan, Galician, Basque) get Spanish rather than English.
 const detectLang = () => {
-  const l = (typeof navigator !== 'undefined' && navigator.language) || 'en';
-  return l.toLowerCase().startsWith('es') ? 'es' : 'en';
+  const nav = typeof navigator !== 'undefined' ? navigator : {};
+  const list = nav.languages?.length ? nav.languages : [nav.language || 'en'];
+  for (const l of list) {
+    const base = String(l).toLowerCase().split('-')[0];
+    if (['es', 'ca', 'gl', 'eu'].includes(base)) return 'es';
+    if (base === 'en') return 'en';
+  }
+  return 'en';
 };
 
 export const DEFAULT_SETTINGS = () => ({

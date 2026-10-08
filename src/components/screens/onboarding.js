@@ -52,7 +52,7 @@ function visual(key) {
   );
 }
 
-export function onboardingScreen() {
+export function onboardingScreen({ from } = {}) {
   let index = 0;
   const track = h('div.onb-track');
   const slides = SLIDES.map((key) => h('section.onb-slide', visual(key), h('h2', t(`onb.${key}.title`)), h('p', t(`onb.${key}.body`))));
@@ -120,6 +120,8 @@ export function onboardingScreen() {
     onShow: () => to(0),
     onBack: () => {
       if (index > 0) to(index - 1);
+      else if (from) go(from); // replayed from Settings: back where it came from
+      else return false; // first launch: Back exits the app (the tutorial shows again next time)
       return true;
     },
     cleanup: () => {

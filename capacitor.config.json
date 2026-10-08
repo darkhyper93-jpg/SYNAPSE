@@ -16,6 +16,9 @@
       "backgroundColor": "#05060f",
       "showSpinner": false,
       "androidScaleType": "CENTER_CROP"
+    },
+    "SystemBars": {
+      "initialViewportFitValueHint": "cover"
     }
   }
 }

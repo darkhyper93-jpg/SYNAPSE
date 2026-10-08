@@ -4,7 +4,7 @@
 import { Challenge } from '../engine/challenge.js';
 import { byDiff } from '../utils/math.js';
 import { pickShapes, pickColors } from '../data/visuals.js';
-import { sym } from './common.js';
+import { sym, symbolLabel } from './common.js';
 import { h } from '../utils/dom.js';
 import { t } from '../game/i18n.js';
 
@@ -218,6 +218,8 @@ export class ContradictChallenge extends Challenge {
         const p = sequencePredictions(r.terms);
         if (p.size !== 1 || !p.has(r.answer)) return false;
         if (new Set(r.options).size !== 4 || r.terms.some((v) => v < 0 || v > 999)) return false;
+        // a negative answer would be the only negative option: solvable without the rule
+        if (r.answer < 0 || r.answer > 999) return false;
       } else if (r.kind === 'visual') {
         if (new Set(r.options.map(r.key)).size !== 4) return false;
         if (r.periods.some((p) => r.len < 2 * p)) return false;
@@ -282,7 +284,7 @@ export class ContradictChallenge extends Challenge {
     box.append(q);
     this.stage.append(box);
     const res = await this.askOptions({
-      options: r.options.map((it) => ({ value: r.key(it), label: `${t(`color.${it.color}`)} ${t(`shape.${it.shape}`)}${it.rot ? ` ${it.rot}°` : ''}`, html: sym(it, this.settings, { rotate: it.rot }) })),
+      options: r.options.map((it) => ({ value: r.key(it), label: `${symbolLabel(it)}${it.rot ? ` ${it.rot}°` : ''}`, html: sym(it, this.settings, { rotate: it.rot }) })),
       correctValue: r.key(r.answer),
       timeLimit: this.timeLimit(),
       trial: { explanation: t(r.textKey, { a: r.periods[0], b: r.periods[1], c: r.periods[2] }) },

@@ -6,7 +6,11 @@ import { t } from '../game/i18n.js';
 export const sym = (item, settings = {}, opts = {}) =>
   shapeSVG(item.shape, item.color, { glyph: settings.colorAssist ? t(`glyph.${item.color}`) : '', ...opts });
 
-export const symbolLabel = (item) => `${t(`color.${item.color}`)} ${t(`shape.${item.shape}`)}`;
+/** "red star" / "estrella roja": word order and agreement come from the language. */
+export const symbolLabel = (item) => {
+  const fem = t('sym.fem').split(',').includes(item.shape);
+  return t('sym.label', { color: t(`adj.${item.color}${fem ? '.f' : ''}`), shape: t(`shape.${item.shape}`) });
+};
 
 export const colorOption = (color, settings = {}) => ({
   value: color,

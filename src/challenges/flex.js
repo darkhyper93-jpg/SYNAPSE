@@ -177,18 +177,24 @@ export class FlexChallenge extends Challenge {
         current = { i, t0: now(), done: false, resolve };
         this.later(resolve, p.window);
       });
-      if (!current.done) {
+      const answered = current.done;
+      if (!answered) {
         current.done = true;
         const forgiving = postSwitch;
         this.recordTrial({ correct: false, rt: null, feedback: 'mini', forgiving, weight: forgiving ? 0.5 : 1, answerLabel: t('flex.tooSlow') });
       }
       postSwitch = false;
       current = null;
+      // an answer gets its moment: the symbol flies to the chosen side, which glows (same pacing)
+      if (answered) await this.wait(220);
+      // snap back instantly (no slide-in of the next symbol from the side it flew to)
+      stim.style.transition = 'none';
+      this.frame(() => this.frame(() => (stim.style.transition = ''))); // after one styled frame
       stim.classList.remove('is-on', 'fly-left', 'fly-right', 'is-ok', 'is-bad');
       stim.innerHTML = '';
       left.classList.remove('is-hit', 'is-bad');
       right.classList.remove('is-hit', 'is-bad');
-      await this.wait(220);
+      if (!answered) await this.wait(220);
     }
     this._keyHandler = null;
     this.setProgress(p.trials.length, p.trials.length);

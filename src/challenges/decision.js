@@ -68,7 +68,8 @@ export class DecisionChallenge extends Challenge {
     const side = (n) => {
       const shapes = rng.shuffle([...Array(n).fill(target), ...Array.from({ length: fillers + rng.int(-1, 1) }, () => rng.pick(others))]);
       const cells = rng.sample([...Array(G * G).keys()], Math.min(shapes.length, G * G));
-      return cells.map((c, i) => ({ shape: shapes[i], color, x: (c % G) * 20 + 3 + rng.range(0, 6), y: Math.floor(c / G) * 20 + 3 + rng.range(0, 6) }));
+      // (max edge 96 %: nothing crosses the panel's rounded border; neighbours stay ≥ 15 % apart)
+      return cells.map((c, i) => ({ shape: shapes[i], color, x: (c % G) * 19 + 2 + rng.range(0, 4), y: Math.floor(c / G) * 19 + 2 + rng.range(0, 4) }));
     };
     return { kind: 'compare', target, color, counts, answer: more, left: side(counts.left), right: side(counts.right) };
   }
@@ -174,7 +175,7 @@ export class DecisionChallenge extends Challenge {
 
   async play_value(r) {
     this.setPrompt(t('decision.value'));
-    await this.askOptions({
+    const answered = this.askOptions({
       options: r.cards.map((c, i) => ({
         value: i,
         label: c.join(' + '),
@@ -187,6 +188,15 @@ export class DecisionChallenge extends Challenge {
       className: 'is-values',
       trial: { explanation: r.cards.map((c) => sum(c)).join(' · ') },
     });
+    // long sums (negative two-digit terms) on a narrow phone: shrink just those digits to fit
+    this.stage.querySelectorAll('.value-card').forEach((vc) => {
+      const avail = vc.closest('.option').clientWidth - 20;
+      for (let k = 0; k < 3 && vc.scrollWidth > avail; k++) {
+        const size = parseFloat(getComputedStyle(vc).fontSize);
+        vc.style.fontSize = `${((size * avail) / vc.scrollWidth).toFixed(1)}px`;
+      }
+    });
+    await answered;
   }
 
   handleInput(input) {

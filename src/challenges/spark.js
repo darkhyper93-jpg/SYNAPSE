@@ -60,14 +60,17 @@ export class SparkChallenge extends Challenge {
 
     let active = null; // { cell, decoy, decoyCell, t0, resolved }
     let resolveEvent = null;
+    let lastEnd = -Infinity; // when the last spark went out
 
     const clearNodes = () => nodes.forEach((n) => n.classList.remove('is-target', 'is-decoy', 'is-hit', 'is-miss', 'is-bad'));
 
     const hit = (i) => {
       if (!active) {
-        // Anticipation: tapping when nothing is lit.
         nodes[i].classList.add('is-bad');
         this.later(() => nodes[i].classList.remove('is-bad'), 250);
+        // just after a spark went out it's a late answer to that one (already counted as missed)
+        if (now() - lastEnd < 300) return;
+        // Anticipation: tapping when nothing is lit.
         this.recordTrial({ correct: false, rt: null, feedback: 'mini', answerLabel: t('spark.early'), weight: 0.5 });
         return;
       }
@@ -125,6 +128,7 @@ export class SparkChallenge extends Challenge {
       }
       await this.wait(160);
       active = null;
+      lastEnd = now();
       clearNodes();
     }
     this._keyHandler = null;

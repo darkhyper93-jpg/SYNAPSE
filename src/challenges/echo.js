@@ -2,7 +2,7 @@
 // Variants: where (position), what (symbol at position), color, order (sequence), change (scene diff).
 import { Challenge } from '../engine/challenge.js';
 import { byDiff, stepDiff, clamp } from '../utils/math.js';
-import { pickShapes, pickColors, BASIC_SHAPES, SHAPES, COLORS } from '../data/visuals.js';
+import { pickShapes, pickColors, BASIC_SHAPES, SHAPES, COLORS, DISTINCT_COLORS } from '../data/visuals.js';
 import { board, clickBoard, multiClickBoard, drainBar, noiseMask, sym, inlineSym, symbolOption, colorOption } from './common.js';
 import { now } from '../utils/dom.js';
 import { t } from '../game/i18n.js';
@@ -83,7 +83,8 @@ export class EchoChallenge extends Challenge {
       const candidates = items.filter((i) => shapeCount(i.shape) === 1);
       const target = candidates.length ? rng.pick(candidates) : null;
       if (variant === 'color') {
-        const others = pickColors(rng, 6, d).filter((c) => c !== target?.color);
+        // 5 → only clearly distinct hues below the similar-colour threshold (as the scene itself)
+        const others = pickColors(rng, 5, d).filter((c) => c !== target?.color);
         const options = rng.shuffle([target?.color, ...others.slice(0, 3)]);
         return { ...base, items, target, options };
       }
@@ -98,7 +99,7 @@ export class EchoChallenge extends Challenge {
       for (const it of pool) if (lures.length < 3 && !lures.some((l) => l.shape === it.shape && l.color === it.color) && !(it.shape === target.shape && it.color === target.color)) lures.push(it);
       let guard = 0;
       while (lures.length < 3 && guard++ < 100) {
-        const it = { shape: rng.pick(d >= 0.6 ? Object.keys(SHAPES) : BASIC_SHAPES), color: rng.pick(Object.keys(COLORS)) };
+        const it = { shape: rng.pick(d >= 0.6 ? Object.keys(SHAPES) : BASIC_SHAPES), color: rng.pick(d >= 0.65 ? Object.keys(COLORS) : DISTINCT_COLORS) };
         if (!(it.shape === target.shape && it.color === target.color) && !lures.some((l) => l.shape === it.shape && l.color === it.color)) lures.push(it);
       }
       return { ...base, items, target, options: rng.shuffle([target, ...lures]) };

@@ -31,13 +31,26 @@ export function go(name, props = {}) {
   const token = ++navToken;
   const prev = current;
   if (prev) {
+    const y = window.scrollY;
     prev.cleanup?.();
     prev.el.classList.add('is-leaving');
     const old = prev.el;
+    // the leaving page fades where the player was looking, not snapped back to its top
+    if (y) old.style.top = `${-y}px`;
     setTimeout(() => old.remove(), reduced() ? 0 : 280);
     warp(props.warpColor);
+    current = null;
   }
-  const view = screens[name](props);
+  let view;
+  try {
+    view = screens[name](props);
+  } catch (err) {
+    // a screen that cannot be built (e.g. unexpected saved data) must never leave a blank app
+    console.error(err);
+    if (name === 'home') throw err;
+    go('home');
+    return;
+  }
   if (token !== navToken) return;
   view.el.classList.add('screen', `screen-${name}`, 'is-entering');
   root.append(view.el);
@@ -59,7 +72,8 @@ export function handleBack() {
     return true;
   }
   if (current?.onBack?.()) return true;
-  if (current && current.name !== 'home') {
+  // home and a first-launch tutorial are roots: Back leaves the app
+  if (current && current.name !== 'home' && current.name !== 'onboarding') {
     go('home');
     return true;
   }

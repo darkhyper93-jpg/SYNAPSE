@@ -43,6 +43,9 @@ export class FocusChallenge extends Challenge {
         placed++;
       }
     }
+    // The rule is about what the player sees: a filler that happens to look exactly like the
+    // exception is the exception (the target right after it must be held back too).
+    if (exception) items.forEach((it) => it.shape === exception.shape && it.color === exception.color && (it.exception = true));
     // Who must respond? Targets not preceded by the exception.
     items.forEach((it, i) => {
       it.respond = it.isTarget && !(exception && items[i - 1]?.exception);

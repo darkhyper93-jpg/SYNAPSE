@@ -53,7 +53,7 @@ export function profileScreen() {
             ? h('div.chart-card', h('div.chart-title', t('profile.rtChart'), h('b', rtSeries.filter((v) => v != null).map((v) => `${v.toFixed(2)}s`).slice(-4).join(' → '))), h('div', { html: lineChart([{ label: 'rt', color: '#ff5470', values: rtSeries }], { format: (v) => `${v.toFixed(2)}s` }) }))
             : null,
           h('div.chart-card', h('div.chart-title', t('profile.scoreChart')), h('div', { html: lineChart([{ label: 'score', color: '#2ee6ff', values: scoreSeries }], { min: 0, format: (v) => (v >= 1000 ? `${(v / 1000).toFixed(1)}k` : Math.round(v)) }) })),
-          h('div.chart-card.is-wide', h('div.chart-title', t('profile.skillsChart')), h('div', { html: lineChart(SKILL_IDS.filter((id) => profile.skill(id).plays).map((id) => ({ label: id, color: SKILLS[id].color, values: hist.map((x) => x.ratings?.[id] || null).slice(-30) })), { min: 0, max: 100 }) })),
+          h('div.chart-card.is-wide', h('div.chart-title', t('profile.skillsChart')), h('div', { html: lineChart(SKILL_IDS.filter((id) => profile.skill(id).plays).map((id) => ({ label: id, color: SKILLS[id].color, values: hist.map((x) => x.ratings?.[id] || null).slice(-30) })), { min: 0, max: 100 }) || `<p class="empty">${t('profile.needMore')}</p>` })),
         ),
       )
     : h('section.pf-section', h('h3', t('profile.evolution')), h('p.empty', t('profile.needMore')));

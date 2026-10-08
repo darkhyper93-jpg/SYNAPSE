@@ -44,7 +44,8 @@ export class DualChallenge extends Challenge {
       it.cell = rng.int(0, cells - 1);
       items.push(it);
     }
-    const start = Math.max(0, countN - rng.int(1, 2));
+    // the right count can be on any of the four buttons (countN ≥ 3 keeps start ≥ 0)
+    const start = Math.max(0, countN - rng.int(0, 3));
     this.params = { countItem, hitItem, items, show, gap, countN, options: [start, start + 1, start + 2, start + 3] };
   }
 

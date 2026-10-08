@@ -34,10 +34,10 @@ export const TYPES_BY_ID = Object.fromEntries(CHALLENGE_TYPES.map((T) => [T.meta
 
 export const typesForSkill = (skill) => CHALLENGE_TYPES.filter((T) => T.meta.skill === skill);
 
-/** Combined challenges unlock only after demonstrating performance. */
+/** Combined challenges unlock only after demonstrating performance — and then stay unlocked. */
 export function isUnlocked(Type, profile) {
   const m = Type.meta;
-  if (!m.minRating) return true;
+  if (!m.minRating || profile.state?.unlocked?.[m.id]) return true;
   return (m.unlockSkills || []).every((s) => profile.rating(s) >= m.minRating);
 }
 

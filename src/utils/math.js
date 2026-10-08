@@ -1,4 +1,5 @@
-export const clamp = (v, min = 0, max = 1) => Math.min(max, Math.max(min, v));
+// NaN-safe: a non-numeric value falls back to the lower bound instead of poisoning everything downstream.
+export const clamp = (v, min = 0, max = 1) => (Number.isNaN(+v) ? min : Math.min(max, Math.max(min, v)));
 export const lerp = (a, b, t) => a + (b - a) * t;
 export const invLerp = (a, b, v) => (v - a) / (b - a);
 export const sum = (arr) => arr.reduce((s, x) => s + x, 0);

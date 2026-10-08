@@ -80,20 +80,24 @@ export function resultsScreen({ summary }) {
     ),
   );
 
+  const timers = [];
   return {
     el,
     onShow: () => {
       countUp(scoreEl, sm.score, { duration: 1400 });
-      setTimeout(() => {
-        stamp.classList.add('is-in');
-        sfx('stamp');
-        haptic('heavy');
-      }, 1450);
-      if (sm.isRecord) {
+      timers.push(
         setTimeout(() => {
-          sfx('perfect');
-        }, 1300);
-      }
+          stamp.classList.add('is-in');
+          sfx('stamp');
+          haptic('heavy');
+        }, 1450),
+      );
+      if (sm.isRecord) timers.push(setTimeout(() => sfx('perfect'), 1300));
+    },
+    // leaving early: the stamp's thud and buzz must not land on the next screen
+    cleanup: () => {
+      timers.forEach(clearTimeout);
+      countUp(scoreEl, sm.score, { duration: 0 });
     },
   };
 }

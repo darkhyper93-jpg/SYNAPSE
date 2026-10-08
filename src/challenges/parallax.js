@@ -86,7 +86,13 @@ export function isoVisibility(cubes) {
   const counts = new Array(cs.length).fill(0);
   owner.forEach(({ i }) => counts[i]++);
   const signature = [...owner.entries()].map(([k, v]) => `${k}${v.f}`).sort().join('|');
-  return { counts, signature };
+  // The drawing as the player sees it, wherever it sits: isometric depth can make two different
+  // 3D shapes draw the very same picture, just shifted.
+  const pts = [...owner.entries()].map(([k, v]) => [...k.split(',').map(Number), v.f]);
+  const mx = Math.min(...pts.map((p) => p[0]));
+  const my = Math.min(...pts.map((p) => p[1]));
+  const picture = pts.map(([x, y, f]) => `${(x - mx).toFixed(2)},${(y - my).toFixed(2)}${f}`).sort().join('|');
+  return { counts, signature, picture };
 }
 
 const spans = (cubes) => [0, 1, 2].filter((i) => new Set(cubes.map((c) => c[i])).size > 1).length;
@@ -190,8 +196,12 @@ export class ParallaxChallenge extends Challenge {
     // Every cube visible (≥ 2 lattice triangles) in the reference and in every option.
     const views = [r.shape, ...r.options.map((o) => o.cubes)].map(isoVisibility);
     if (views.some((v) => v.counts.some((c) => c < 2))) return false;
-    // Options must not look identical on screen.
-    if (new Set(views.slice(1).map((v) => v.signature)).size !== 4) return false;
+    // Options must not look identical on screen…
+    const pics = views.map((v) => v.picture);
+    if (new Set(pics.slice(1)).size !== 4) return false;
+    // …the right one must really be turned (not a copy of the reference picture),
+    // and no wrong one may draw exactly like the reference.
+    if (pics.slice(1).some((p) => p === pics[0])) return false;
     const canon = canonical(r.shape);
     const canons = r.options.map((o) => canonical(o.cubes));
     // Exactly one option is a rotation of the reference.

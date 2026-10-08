@@ -11,6 +11,12 @@ const en = {
   'shape.squircle': 'rounded square', 'shape.diamond': 'diamond', 'shape.triangle': 'triangle',
   'shape.triangleDown': 'inverted triangle', 'shape.star': 'star', 'shape.star6': '6-point star',
   'shape.cross': 'cross', 'shape.ring': 'ring',
+  // colour as an adjective inside a sentence or a symbol name (".f": feminine form, for languages that have one)
+  'adj.red': 'red', 'adj.orange': 'orange', 'adj.yellow': 'yellow', 'adj.green': 'green',
+  'adj.cyan': 'cyan', 'adj.blue': 'blue', 'adj.violet': 'violet', 'adj.pink': 'pink',
+  'adj.red.f': 'red', 'adj.orange.f': 'orange', 'adj.yellow.f': 'yellow', 'adj.green.f': 'green',
+  'adj.cyan.f': 'cyan', 'adj.blue.f': 'blue', 'adj.violet.f': 'violet', 'adj.pink.f': 'pink',
+  'sym.label': '{color} {shape}', 'sym.fem': '-', // shapes whose name takes the feminine colour form
   'corner.tl': 'TOP-LEFT', 'corner.tr': 'TOP-RIGHT', 'corner.bl': 'BOTTOM-LEFT', 'corner.br': 'BOTTOM-RIGHT',
 
   // skills
@@ -149,7 +155,7 @@ const en = {
   'onesecond.majority': 'Which shape appeared most?',
   // TRACE
   'trace.aria': 'Tracking arena', 'trace.cueOne': 'Lock on to the <b style="color:#ff4fd8">pink</b> orb',
-  'trace.cueMany': 'Lock on to the {n} <b style="color:#ff4fd8">pink</b> orbs', 'trace.follow': 'Follow…',
+  'trace.cueMany': 'Lock on to the {n} <b style="color:#ff4fd8">pink</b> orbs', 'trace.follow': 'Follow…', 'trace.followOne': 'Follow it…',
   'trace.pickOne': 'Where is it?', 'trace.pickMany': 'Pick the {n} orbs',
   // CONTRADICT
   'logic.map': 'Find the rule', 'logic.seq': 'What comes next?', 'logic.visual': 'Which symbol comes next?',
@@ -213,6 +219,11 @@ const es = {
   'shape.squircle': 'cuadrado redondeado', 'shape.diamond': 'rombo', 'shape.triangle': 'triángulo',
   'shape.triangleDown': 'triángulo invertido', 'shape.star': 'estrella', 'shape.star6': 'estrella de 6 puntas',
   'shape.cross': 'cruz', 'shape.ring': 'anillo',
+  'adj.red': 'rojo', 'adj.orange': 'naranja', 'adj.yellow': 'amarillo', 'adj.green': 'verde',
+  'adj.cyan': 'cian', 'adj.blue': 'azul', 'adj.violet': 'violeta', 'adj.pink': 'rosa',
+  'adj.red.f': 'roja', 'adj.orange.f': 'naranja', 'adj.yellow.f': 'amarilla', 'adj.green.f': 'verde',
+  'adj.cyan.f': 'cian', 'adj.blue.f': 'azul', 'adj.violet.f': 'violeta', 'adj.pink.f': 'rosa',
+  'sym.label': '{shape} {color}', 'sym.fem': 'star,star6,cross',
   'corner.tl': 'SUPERIOR IZQUIERDA', 'corner.tr': 'SUPERIOR DERECHA', 'corner.bl': 'INFERIOR IZQUIERDA', 'corner.br': 'INFERIOR DERECHA',
 
   'skill.memory': 'MEMORIA', 'skill.perception': 'PERCEPCIÓN', 'skill.logic': 'LÓGICA', 'skill.reaction': 'REACCIÓN',
@@ -335,10 +346,10 @@ const es = {
   'echo.change': '¿Qué celda cambió?',
   'echo.kind.color': 'cambió un color', 'echo.kind.shape': 'cambió una forma', 'echo.kind.appear': 'apareció un símbolo', 'echo.kind.disappear': 'desapareció un símbolo',
   'onesecond.ready': 'Mira al centro…', 'onesecond.corner': '¿Qué símbolo estaba en la esquina {corner}?',
-  'onesecond.count': '¿Cuántos elementos {color} había?', 'onesecond.digit': '¿Qué número apareció?',
+  'onesecond.count': '¿Cuántos elementos de color {color} había?', 'onesecond.digit': '¿Qué número apareció?',
   'onesecond.majority': '¿Qué forma apareció más veces?',
   'trace.aria': 'Arena de seguimiento', 'trace.cueOne': 'Fíjate en la esfera <b style="color:#ff4fd8">rosa</b>',
-  'trace.cueMany': 'Fíjate en las {n} esferas <b style="color:#ff4fd8">rosas</b>', 'trace.follow': 'Síguelas…',
+  'trace.cueMany': 'Fíjate en las {n} esferas <b style="color:#ff4fd8">rosas</b>', 'trace.follow': 'Síguelas…', 'trace.followOne': 'Síguela…',
   'trace.pickOne': '¿Dónde está?', 'trace.pickMany': 'Señala las {n} esferas',
   'logic.map': 'Descubre la regla', 'logic.seq': '¿Qué viene después?', 'logic.visual': '¿Qué símbolo sigue?',
   'logic.anomaly': 'Un par contradice la regla — ¿cuál?', 'logic.rule': 'Regla: {rule}',
@@ -363,7 +374,7 @@ const es = {
   'dual.prompt': 'Cuenta {count} · golpea {hit}', 'dual.count': '¿Cuántos {count} viste?', 'dual.answer': 'Había {n}',
   'nexus.memorize': 'Memoriza posiciones y colores', 'nexus.neighbor': '¿De qué color era el símbolo {dir} {sym}?',
   'nexus.dir.right': 'a la derecha de', 'nexus.dir.left': 'a la izquierda de', 'nexus.dir.above': 'encima de', 'nexus.dir.below': 'debajo de',
-  'nexus.rowCount': '¿Cuántos símbolos {color} había en la fila {row}?',
+  'nexus.rowCount': '¿Cuántos símbolos de color {color} había en la fila {row}?',
   'nexus.row.0': 'superior', 'nexus.row.1': 'central', 'nexus.row.2': 'inferior',
   'nexus.rel.left': '¿Cuál estaba más a la IZQUIERDA?', 'nexus.rel.above': '¿Cuál estaba más ARRIBA?',
   'combo.nice': '¡BIEN!', 'combo.great': '¡GENIAL!', 'combo.awesome': '¡TREMENDO!', 'combo.amazing': '¡INCREÍBLE!',

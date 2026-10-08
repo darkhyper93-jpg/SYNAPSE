@@ -41,8 +41,8 @@ export function radarChart(values, { size = 320, showLabels = true, max = 100 } 
   </svg>`;
 }
 
-/** Smooth path through points (Catmull-Rom → Bezier). */
-function smoothPath(pts) {
+/** Smooth path through points (Catmull-Rom → Bezier). Control points stay inside [yMin, yMax]. */
+function smoothPath(pts, yMin = -Infinity, yMax = Infinity) {
   if (pts.length < 2) return pts.length ? `M${pts[0][0]},${pts[0][1]}` : '';
   let d = `M${pts[0][0].toFixed(1)},${pts[0][1].toFixed(1)}`;
   for (let i = 0; i < pts.length - 1; i++) {
@@ -50,8 +50,10 @@ function smoothPath(pts) {
     const p1 = pts[i];
     const p2 = pts[i + 1];
     const p3 = pts[i + 2] || p2;
-    const c1 = [p1[0] + (p2[0] - p0[0]) / 6, p1[1] + (p2[1] - p0[1]) / 6];
-    const c2 = [p2[0] - (p3[0] - p1[0]) / 6, p2[1] - (p3[1] - p1[1]) / 6];
+    // clamped so a swing between sessions never draws the curve outside the plot
+    const cy = (y) => Math.min(yMax, Math.max(yMin, y));
+    const c1 = [p1[0] + (p2[0] - p0[0]) / 6, cy(p1[1] + (p2[1] - p0[1]) / 6)];
+    const c2 = [p2[0] - (p3[0] - p1[0]) / 6, cy(p2[1] - (p3[1] - p1[1]) / 6)];
     d += ` C${c1[0].toFixed(1)},${c1[1].toFixed(1)} ${c2[0].toFixed(1)},${c2[1].toFixed(1)} ${p2[0].toFixed(1)},${p2[1].toFixed(1)}`;
   }
   return d;
@@ -86,7 +88,7 @@ export function lineChart(series, { width = 560, height = 200, min, max, format 
       const id = `lg${++gid}`;
       const pts = s.values.map((v, i) => (v == null ? null : [X(i), Y(v)])).filter(Boolean);
       if (!pts.length) return '';
-      const line = smoothPath(pts);
+      const line = smoothPath(pts, padT, height - padB);
       const area = `${line} L${pts[pts.length - 1][0].toFixed(1)},${height - padB} L${pts[0][0].toFixed(1)},${height - padB} Z`;
       const last = pts[pts.length - 1];
       return `<defs><linearGradient id="${id}" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="${s.color}" stop-opacity=".35"/><stop offset="100%" stop-color="${s.color}" stop-opacity="0"/></linearGradient></defs>

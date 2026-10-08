@@ -5,6 +5,7 @@ import { storage } from './game/storage.js';
 import { suspendAudio, warmAudio } from './game/audio.js';
 import { initPlatform, isLowPower } from './game/platform.js';
 import { profile } from './game/playerProfile.js';
+import { TYPES_BY_ID } from './engine/challengeGenerator.js';
 import { app, mountRoot, registerScreen, go, handleBack, initTouchFeedback } from './components/ui.js';
 import { homeScreen } from './components/screens/home.js';
 import { playScreen } from './components/screens/play.js';
@@ -57,8 +58,11 @@ function boot() {
     import('./components/fx.js').then((fx) => (window.__synapse = { go, fx, app, profile }));
   }
   // Deep link for practice / testing: ?practice=parallax&d=0.6
+  profile.recoverPending();
   const q = new URLSearchParams(location.search);
-  if (q.get('practice')) go('play', { mode: 'practice', typeId: q.get('practice'), difficulty: q.has('d') ? Number(q.get('d')) : undefined });
+  const practice = q.get('practice');
+  const d = q.get('d') ? Number(q.get('d').replace(',', '.')) : NaN;
+  if (practice && TYPES_BY_ID[practice]) go('play', { mode: 'practice', typeId: practice, difficulty: Number.isFinite(d) ? d : undefined });
   else if (!storage.load('onboarded', false) && !q.has('skipintro')) go('onboarding');
   else go('home');
 }

@@ -74,5 +74,15 @@ function registerServiceWorker() {
   if (!('serviceWorker' in navigator)) return;
   const secure = location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1';
   if (!secure || new URLSearchParams(location.search).has('nosw')) return;
-  window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js').catch(() => {});
+    // The first visit loads everything before the worker exists: hand it the list of files this
+    // page actually used, so an app installed on that visit also opens offline.
+    navigator.serviceWorker.ready.then((reg) =>
+      setTimeout(() => {
+        const urls = [location.href, ...performance.getEntriesByType('resource').map((e) => e.name)];
+        reg.active?.postMessage({ type: 'precache', urls });
+      }, 3000),
+    );
+  });
 }

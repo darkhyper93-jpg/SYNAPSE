@@ -115,7 +115,7 @@ export function settingsScreen() {
       h('p.set-help', t('set.mixDesc')),
     ),
     h('section.set-group', h('h3', t('set.help')),
-      h('div.set-row', h('div.set-text', h('b', t('set.tutorial')), h('small', t('set.tutorialDesc'))), h('button.btn.btn-ghost', { type: 'button', onclick: () => go('onboarding') }, t('set.tutorialBtn'))),
+      h('div.set-row', h('div.set-text', h('b', t('set.tutorial')), h('small', t('set.tutorialDesc'))), h('button.btn.btn-ghost', { type: 'button', onclick: () => go('onboarding', { from: 'settings' }) }, t('set.tutorialBtn'))),
     ),
     h('section.set-group', h('h3', t('set.data')),
       h('p.set-help', t('set.dataDesc')),

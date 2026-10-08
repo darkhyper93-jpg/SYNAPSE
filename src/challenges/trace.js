@@ -9,6 +9,7 @@ const W = 1;
 const H = 0.68;
 const R = 0.034;
 const FPS = 60;
+const MAX_FUSED_FRAMES = 18;
 const LABELS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E'];
 
 export class TraceChallenge extends Challenge {
@@ -68,7 +69,25 @@ export class TraceChallenge extends Challenge {
       endFrame = f;
     }
     const targetIdx = rng.sample([...Array(n).keys()], targets);
-    return { n, targets: targetIdx, pos, endFrame, duration: (endFrame / FPS) * 1000, blink, final: balls.map((b) => ({ x: b.x, y: b.y })) };
+    return { n, targets: targetIdx, pos, endFrame, duration: (endFrame / FPS) * 1000, blink, final: balls.map((b) => ({ x: b.x, y: b.y })), fused: this.longestFusion(pos, n, targetIdx, endFrame) };
+  }
+
+  /** Longest run of frames in which a target and an identical distractor overlap as one blob. */
+  longestFusion(pos, n, targets, endFrame) {
+    const run = new Int16Array(n * n);
+    let longest = 0;
+    for (let f = 0; f <= endFrame; f++) {
+      const o = f * n * 2;
+      for (const a of targets) {
+        for (let b = 0; b < n; b++) {
+          if (targets.includes(b)) continue;
+          const k = a * n + b;
+          run[k] = Math.hypot(pos[o + a * 2] - pos[o + b * 2], pos[o + a * 2 + 1] - pos[o + b * 2 + 1]) < R ? run[k] + 1 : 0;
+          if (run[k] > longest) longest = run[k];
+        }
+      }
+    }
+    return longest;
   }
 
   separated(balls) {
@@ -79,7 +98,8 @@ export class TraceChallenge extends Challenge {
   }
 
   validate() {
-    return this.rounds.every((r) => r.final.length === r.n && this.separated(r.final));
+    // a target that travels fused with a distractor for over ~0.3 s can't be told apart when they split
+    return this.rounds.every((r) => r.final.length === r.n && this.separated(r.final) && r.fused < MAX_FUSED_FRAMES);
   }
 
   async run() {
@@ -212,7 +232,7 @@ export class TraceChallenge extends Challenge {
       this.frame(loop);
     });
     // 2) Motion
-    this.setPrompt(t('trace.follow'));
+    this.setPrompt(t(r.targets.length > 1 ? 'trace.follow' : 'trace.followOne'));
     // timed from the vsync-aligned frame timestamps (performance.now() at callback time jitters)
     await new Promise((resolve) => {
       let tStart = 0;

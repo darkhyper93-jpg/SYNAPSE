@@ -42,14 +42,15 @@ export class NexusChallenge extends Challenge {
     return { rows, cols, items, questions, exposure: byDiff(d, 3400, 1900), limit: byDiff(d, 7000, 3800) };
   }
 
-  q_neighbor(items, rows, cols) {
+  q_neighbor(items, rows, cols, colors) {
     const rng = this.rng;
     for (const it of rng.shuffle(items)) {
       for (const dir of rng.shuffle(Object.keys(DIRS))) {
         const [dr, dc] = DIRS[dir];
         const nb = items.find((x) => x.r === it.r + dr && x.c === it.c + dc);
         if (nb) {
-          const lure = pickColors(rng, 4, 0).filter((c) => c !== nb.color);
+          // lures from the colours actually on the board first: "never seen" must not give it away
+          const lure = [...new Set([...rng.shuffle(colors), ...pickColors(rng, 4, 0)])].filter((c) => c !== nb.color);
           return { kind: 'neighbor', ref: it, dir, answer: nb.color, options: rng.shuffle([nb.color, ...lure.slice(0, 3)]) };
         }
       }
@@ -60,9 +61,12 @@ export class NexusChallenge extends Challenge {
   q_rowCount(items, rows, cols, colors) {
     const rng = this.rng;
     const row = rng.int(0, rows - 1);
-    const color = rng.pick(colors);
+    // mostly a colour that is in that row, so "0" is not the safe bet
+    const inRow = items.filter((x) => x.r === row).map((x) => x.color);
+    const color = inRow.length && rng.chance(0.75) ? rng.pick(inRow) : rng.pick(colors);
     const answer = items.filter((x) => x.r === row && x.color === color).length;
-    return { kind: 'rowCount', row, color, answer, options: [0, 1, 2, 3].map((v) => v + Math.max(0, answer - 3)) };
+    const start = answer - rng.int(0, Math.min(3, answer));
+    return { kind: 'rowCount', row, color, answer, options: [start, start + 1, start + 2, start + 3] };
   }
 
   q_relation(items) {
@@ -121,7 +125,7 @@ export class NexusChallenge extends Challenge {
       this.setPrompt(t('nexus.neighbor', { dir: t(`nexus.dir.${q.dir}`), sym: neutral(q.ref) }));
       await this.askOptions({ options: q.options.map((c) => colorOption(c, this.settings)), correctValue: q.answer, timeLimit: r.limit });
     } else if (q.kind === 'rowCount') {
-      this.setPrompt(t('nexus.rowCount', { color: `<b>${t(`color.${q.color}`)}</b>`, row: t(`nexus.row.${q.row}`) }));
+      this.setPrompt(t('nexus.rowCount', { color: `<b>${t(`adj.${q.color}`)}</b>`, row: t(`nexus.row.${q.row}`) }));
       await this.askOptions({ options: q.options.map((v) => ({ value: v, label: String(v), html: `<span class="big-num">${v}</span>` })), correctValue: q.answer, timeLimit: r.limit });
     } else {
       this.setPrompt(t(`nexus.rel.${q.axis}`));

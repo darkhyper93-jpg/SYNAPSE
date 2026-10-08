@@ -4,6 +4,7 @@ import { t } from '../../game/i18n.js';
 import { go, app } from '../ui.js';
 import { profile } from '../../game/playerProfile.js';
 import { settings } from '../../game/settings.js';
+import { storage } from '../../game/storage.js';
 import { SessionManager } from '../../engine/sessionManager.js';
 import { streakMultiplier } from '../../engine/scoreSystem.js';
 import { SKILLS, masteryFor } from '../../data/skills.js';
@@ -25,11 +26,13 @@ const COMBOS = [
 export function playScreen({ mode = 'quick', typeId, difficulty } = {}) {
   const s = settings.get();
   const session = new SessionManager({ mode, profile, settings: s, typeId, difficulty }).startSession();
+  const modeId = session.mode.id; // what actually runs (an unknown practice id falls back to quick)
   let alive = true;
   let active = null; // running challenge plan
   let abort = null; // resolves the current wait when pausing
   let waitingReady = null; // resolve fn for intro / summary
   let paused = false;
+  let pauseSeq = 0; // bumped by every pause: a step that awaited across one must not carry on
   let challengeStart = 0;
   let firstRun = true;
 
@@ -45,7 +48,7 @@ export function playScreen({ mode = 'quick', typeId, difficulty } = {}) {
   const hud = h(
     'header.hud',
     quitBtn,
-    h('div.hud-mode', t(`mode.${mode}`)),
+    h('div.hud-mode', t(`mode.${modeId}`)),
     h('div.hud-progress', h('div.hud-bar', sessionFill, sessionGlow), sessionLabel),
     h('div.hud-streak', h('span.flame', { html: flameSVG() }), h('div', h('div.hud-streak-row', streakEl, multEl), bestEl)),
     h('div.hud-score', h('small', t('hud.score')), scoreEl),
@@ -60,7 +63,7 @@ export function playScreen({ mode = 'quick', typeId, difficulty } = {}) {
   const fx = h('div.fx-layer');
   const overlay = h('div.play-overlay');
   const el = h('main.play', hud, h('section.arena', head, prompt, stageWrap, fx), overlay);
-  el.dataset.mode = mode;
+  el.dataset.mode = modeId;
 
   // ---------- fit-to-screen: never scroll during a challenge ----------
   // Shrinks content on small phones, enlarges it on tablets (never canvases: they size themselves).
@@ -293,11 +296,11 @@ export function playScreen({ mode = 'quick', typeId, difficulty } = {}) {
       };
     });
 
-  async function intro(plan) {
+  async function intro(plan, seq) {
     const meta = plan.challenge.meta;
     const skill = SKILLS[plan.skill];
     const seen = profile.state.types[meta.id]?.plays || 0;
-    const compact = seen >= 3 && mode !== 'daily' && mode !== 'practice';
+    const compact = seen >= 3 && modeId !== 'daily' && modeId !== 'practice';
     const lvl = masteryFor(profile.rating(plan.skill));
     clearOverlay();
     stage.innerHTML = '';
@@ -321,7 +324,7 @@ export function playScreen({ mode = 'quick', typeId, difficulty } = {}) {
       compact ? null : h('p.intro-controls', { html: t(`ch.${meta.id}.controls`) }),
       h(
         'div.intro-level',
-        h('span', mode === 'daily' ? t('play.dailyStep', { n: session.index + 1, total: session.mode.count }) : `${t(`mastery.${lvl.key}`)} · ${t('play.intensity')}`),
+        h('span', modeId === 'daily' ? t('play.dailyStep', { n: session.index + 1, total: session.mode.count }) : `${t(`mastery.${lvl.key}`)} · ${t('play.intensity')}`),
         h('div.intensity', h('i', { style: { width: `${Math.round(plan.difficulty * 100)}%` } })),
         h('b', String(Math.round(plan.difficulty * 100))),
       ),
@@ -336,13 +339,17 @@ export function playScreen({ mode = 'quick', typeId, difficulty } = {}) {
     card.classList.add('is-out');
     sfx('whoosh');
     await new Promise((r) => setTimeout(r, 220));
+    // paused while the card was leaving: the pause menu owns the overlay now
+    if (!alive || seq !== pauseSeq) return false;
     clearOverlay();
     return true;
   }
 
   async function celebrations(sum) {
     for (const ev of sum.newEvents) {
-      if (!alive || paused) return;
+      // an interruption only delays the rest (e.g. a new challenge's unlock), it never drops them
+      while (alive && paused) await waitResume();
+      if (!alive) return;
       if (ev.type === 'levelup') {
         const lvl = masteryFor(profile.rating(ev.skill));
         await celebrate({
@@ -417,12 +424,24 @@ export function playScreen({ mode = 'quick', typeId, difficulty } = {}) {
   function pause() {
     if (!alive || paused) return;
     paused = true;
+    pauseSeq += 1;
+    session.pauseClock();
     if (active) {
+      // the interrupted challenge is thrown away together with everything it earned
+      const elapsed = challengeStart ? now() - challengeStart : 0;
       active.challenge.destroy();
       active = null;
+      session.discardCurrent({ elapsedMs: elapsed, seen: elapsed > 0 });
+      shownScore = session.score;
+      countUp(scoreEl, session.score, { duration: 0 });
+      setStreak();
+      updateProgress();
     }
     abort?.();
     abort = null;
+    // in case Android kills the app while it waits in the background
+    const pending = session.pendingRecord();
+    if (pending) storage.save('session.pending', pending);
     el.classList.remove('is-running');
     clearOverlay();
     const canEnd = session.history.length > 0;
@@ -444,12 +463,16 @@ export function playScreen({ mode = 'quick', typeId, difficulty } = {}) {
   function resume() {
     if (!paused) return;
     paused = false;
+    session.resumeClock();
+    storage.remove('session.pending');
     clearOverlay();
     loopResume?.();
   }
 
   function quit() {
     alive = false;
+    storage.remove('session.pending');
+    session.abandon(); // "quit without saving": nothing from this session stays in the profile
     go('home');
   }
 
@@ -485,25 +508,37 @@ export function playScreen({ mode = 'quick', typeId, difficulty } = {}) {
   const waitResume = () => new Promise((r) => (loopResume = r));
 
   async function loop() {
+    try {
+      await runLoop();
+    } catch (err) {
+      // never leave the player on a frozen arena: keep what was played, or go home
+      console.error(err);
+      if (!alive) return;
+      active?.challenge.destroy();
+      active = null;
+      if (session.history.length) finish();
+      else quit();
+    }
+  }
+
+  async function runLoop() {
     while (alive) {
+      // paused between steps (or before the first one): nothing starts until resume
+      if (paused) {
+        await waitResume();
+        continue;
+      }
       const plan = session.next();
       if (!plan) break;
       active = plan;
-      const ok = await intro(plan);
+      const seq = pauseSeq;
+      const ok = await intro(plan, seq);
       if (!alive) return;
-      if (!ok) {
-        await waitResume();
-        if (!alive) return;
-        continue;
-      }
+      // interrupted: pause() already discarded it; a fresh one comes after resume
+      if (!ok || seq !== pauseSeq) continue;
       const result = await runChallenge(plan);
       if (!alive) return;
-      if (!result) {
-        // paused mid-challenge: discard it, wait for resume, then generate a fresh one
-        await waitResume();
-        if (!alive) return;
-        continue;
-      }
+      if (!result || seq !== pauseSeq) continue;
       active = null;
       plan.challenge.destroy();
       const sum = session.completeChallenge(plan.challenge, result);
@@ -517,20 +552,16 @@ export function playScreen({ mode = 'quick', typeId, difficulty } = {}) {
       setScore();
       await celebrations(sum);
       if (!alive) return;
-      if (paused) await waitResume();
+      while (alive && paused) await waitResume();
       if (!alive) return;
-      const okSum = await summaryCard(sum);
-      if (!alive) return;
-      if (!okSum) {
-        await waitResume();
-        if (!alive) return;
-      }
+      await summaryCard(sum); // a pause during the card is handled at the top of the loop
     }
     if (alive) finish();
   }
 
   function finish() {
     alive = false;
+    storage.remove('session.pending');
     const summary = session.finish();
     sfx('end');
     go('results', { summary, warpColor: 'rgba(255,197,61,.45)' });
@@ -551,6 +582,7 @@ export function playScreen({ mode = 'quick', typeId, difficulty } = {}) {
       alive = false;
       active?.challenge.destroy();
       abort?.();
+      loopResume?.(); // let a loop parked on "wait for resume" see it's over and exit
       app.onAppPause = null;
       fitObserver.disconnect();
       window.removeEventListener('resize', onResize);

@@ -5,10 +5,17 @@ const PREFIX = 'synapse.v1.';
 
 export class LocalStorageAdapter {
   load(key, fallback) {
+    let raw = null;
     try {
-      const raw = localStorage.getItem(PREFIX + key);
+      raw = localStorage.getItem(PREFIX + key);
       return raw ? JSON.parse(raw) : fallback;
     } catch {
+      // unreadable data is set aside, never silently overwritten by the next save
+      try {
+        if (raw) localStorage.setItem(`${PREFIX + key}.corrupt`, raw);
+      } catch {
+        /* storage full or unavailable */
+      }
       return fallback;
     }
   }
@@ -46,7 +53,20 @@ export class MemoryAdapter {
   }
 }
 
-let adapter = typeof localStorage !== 'undefined' ? new LocalStorageAdapter() : new MemoryAdapter();
+// Blocked site data or a sandboxed embed makes even *reading* localStorage throw:
+// fall back to memory so the game still runs (progress just isn't kept).
+function localStorageWorks() {
+  try {
+    const k = `${PREFIX}__probe`;
+    localStorage.setItem(k, '1');
+    localStorage.removeItem(k);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+let adapter = localStorageWorks() ? new LocalStorageAdapter() : new MemoryAdapter();
 
 export const storage = {
   use(newAdapter) {
