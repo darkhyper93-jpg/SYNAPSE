@@ -142,11 +142,44 @@ export function toast(html, { color = '#2ee6ff', icon = '◆', duration = 2600 }
 }
 
 // ---------- modal ----------
+const FOCUSABLE = 'button:not([disabled]), [href], input:not([disabled]), select, textarea, [tabindex]:not([tabindex="-1"])';
+const touchOnly = () => document.body.classList.contains('is-touch');
+
+/**
+ * Keeps keyboard focus inside an open dialog: focuses `initial` (keyboard/mouse users only, so
+ * touch screens never get a focus ring), wraps Tab / Shift+Tab inside `box`, and on release puts
+ * focus back where it was before the dialog opened.
+ * @returns {() => void} release
+ */
+export function holdFocus(box, initial) {
+  const prev = document.activeElement;
+  const onKey = (e) => {
+    if (e.key !== 'Tab' || !box.isConnected) return;
+    const items = [...box.querySelectorAll(FOCUSABLE)].filter((x) => x.offsetParent !== null);
+    if (!items.length) return;
+    const inside = box.contains(document.activeElement);
+    const edge = e.shiftKey ? items[0] : items[items.length - 1];
+    if (!inside || document.activeElement === edge) {
+      e.preventDefault();
+      (e.shiftKey ? items[items.length - 1] : items[0]).focus();
+    }
+  };
+  document.addEventListener('keydown', onKey, true);
+  if (!touchOnly()) setTimeout(() => box.isConnected && (initial || box.querySelector(FOCUSABLE))?.focus({ preventScroll: true }), 30);
+  return () => {
+    document.removeEventListener('keydown', onKey, true);
+    if (!touchOnly() && prev?.isConnected && box.contains(document.activeElement)) prev.focus?.({ preventScroll: true });
+  };
+}
+
+let dialogIds = 0;
 export function confirmDialog({ title, body = '', confirm = t('ui.confirm'), cancel = t('ui.cancel'), danger = false }) {
   return new Promise((resolve) => {
     let unregister = () => {};
+    let release = () => {};
     const close = (v) => {
       unregister();
+      release();
       overlay.classList.add('is-out');
       document.removeEventListener('keydown', onKey, true);
       setTimeout(() => overlay.remove(), 200);
@@ -159,15 +192,18 @@ export function confirmDialog({ title, body = '', confirm = t('ui.confirm'), can
       }
     };
     const okBtn = h(`button.btn${danger ? '.btn-danger' : '.btn-primary'}`, { type: 'button', onclick: () => close(true) }, confirm);
+    const cancelBtn = h('button.btn.btn-ghost', { type: 'button', onclick: () => close(false) }, cancel);
+    const id = `dlg-${++dialogIds}`;
     const overlay = h(
       'div.modal-overlay',
-      { role: 'dialog', 'aria-modal': 'true', onclick: (e) => e.target === overlay && close(false) },
-      h('div.modal', h('h3', title), body ? h('p', { html: body }) : null, h('div.modal-actions', h('button.btn.btn-ghost', { type: 'button', onclick: () => close(false) }, cancel), okBtn)),
+      { role: danger ? 'alertdialog' : 'dialog', 'aria-modal': 'true', 'aria-labelledby': `${id}-t`, 'aria-describedby': body ? `${id}-b` : null, onclick: (e) => e.target === overlay && close(false) },
+      h('div.modal', h('h3', { id: `${id}-t` }, title), body ? h('p', { id: `${id}-b`, html: body }) : null, h('div.modal-actions', cancelBtn, okBtn)),
     );
     unregister = pushLayer(() => close(false));
     document.addEventListener('keydown', onKey, true);
     document.body.append(overlay);
-    if (!document.body.classList.contains('is-touch')) setTimeout(() => okBtn.focus(), 30);
+    // a destructive action never sits under the Enter key by default
+    release = holdFocus(overlay, danger ? cancelBtn : okBtn);
   });
 }
 

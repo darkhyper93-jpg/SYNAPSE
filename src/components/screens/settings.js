@@ -1,6 +1,6 @@
 import { h } from '../../utils/dom.js';
 import { t, setLang } from '../../game/i18n.js';
-import { go, confirmDialog, toast, pushLayer } from '../ui.js';
+import { go, confirmDialog, toast, pushLayer, holdFocus } from '../ui.js';
 import { settings, applySettings } from '../../game/settings.js';
 import { profile } from '../../game/playerProfile.js';
 import { sfx } from '../../game/audio.js';
@@ -32,14 +32,17 @@ async function openPrivacy() {
     return;
   }
   let unregister = () => {};
+  let release = () => {};
   const close = () => {
     unregister();
+    release();
     layer.classList.add('is-out');
     setTimeout(() => layer.remove(), 200);
   };
-  const layer = h('div.modal-overlay.doc-overlay', { role: 'dialog', 'aria-modal': 'true' }, h('div.doc-sheet', h('button.icon-btn.doc-close', { type: 'button', 'aria-label': t('ui.cancel'), onclick: close }, '✕'), h('div.doc-body', { html })));
+  const layer = h('div.modal-overlay.doc-overlay', { role: 'dialog', 'aria-modal': 'true', 'aria-label': t('set.privacy') }, h('div.doc-sheet', h('button.icon-btn.doc-close', { type: 'button', 'aria-label': t('ui.cancel'), onclick: close }, '✕'), h('div.doc-body', { html })));
   unregister = pushLayer(close);
   document.body.append(layer);
+  release = holdFocus(layer);
 }
 
 export function settingsScreen() {

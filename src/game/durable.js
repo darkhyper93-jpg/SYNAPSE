@@ -151,11 +151,12 @@ async function flush() {
  */
 export function mirror(key, raw) {
   if (!DURABLE_KEYS.has(key) || !available()) return;
-  seq += 1;
   try {
+    // continue from the stored counter: another tab of the web version may have moved it on
+    seq = Math.max(seq, lsSeq()) + 1;
     localStorage.setItem(PREFIX + SEQ, String(seq));
   } catch {
-    /* storage full */
+    seq += 1; // storage full: the copy still gets the data
   }
   queue.set(key, raw);
   ready ??= Promise.resolve();

@@ -1,7 +1,7 @@
 // Play screen: runs a session (intro → countdown → challenge → feedback → summary → … → results).
 import { h, now, countUp, replay } from '../../utils/dom.js';
 import { t } from '../../game/i18n.js';
-import { go, app } from '../ui.js';
+import { go, app, holdFocus } from '../ui.js';
 import { profile } from '../../game/playerProfile.js';
 import { settings } from '../../game/settings.js';
 import { storage } from '../../game/storage.js';
@@ -80,6 +80,7 @@ export function playScreen({ mode = 'quick', typeId, difficulty } = {}) {
     const maxZ = big && !stage.querySelector('canvas') ? 1.45 : 1;
     let z = (availH - 6) / needH;
     if (needW && needW < availW) z = Math.min(z, (availW - 24) / needW);
+    else if (needW > availW) z = Math.min(z, availW / needW); // wider than the screen (5-column boards at 320 px)
     z = Math.max(0.58, Math.min(maxZ, z));
     const dy = big ? Math.max(0, (availH - needH * z) / 2.4) : 0;
     if (Math.abs(z - 1) < 0.03 && dy < 4) return;
@@ -447,7 +448,8 @@ export function playScreen({ mode = 'quick', typeId, difficulty } = {}) {
     const canEnd = session.history.length > 0;
     const menu = h(
       'div.pause-card',
-      h('h2', t('pause.title')),
+      { role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'pause-title' },
+      h('h2#pause-title', t('pause.title')),
       h('p', t('pause.body')),
       h('button.btn.btn-primary', { type: 'button', onclick: resume }, t('pause.resume')),
       canEnd ? h('button.btn.btn-ghost', { type: 'button', onclick: () => endSession() }, t('pause.end')) : null,
@@ -456,13 +458,15 @@ export function playScreen({ mode = 'quick', typeId, difficulty } = {}) {
     overlay.append(menu);
     overlay.classList.add('is-on', 'is-pause');
     haptic('medium');
-    if (!document.body.classList.contains('is-touch')) setTimeout(() => menu.querySelector('button')?.focus(), 40);
+    releaseFocus = holdFocus(menu);
   }
 
   let loopResume = null;
+  let releaseFocus = () => {};
   function resume() {
     if (!paused) return;
     paused = false;
+    releaseFocus();
     session.resumeClock();
     storage.remove('session.pending');
     clearOverlay();
@@ -583,6 +587,7 @@ export function playScreen({ mode = 'quick', typeId, difficulty } = {}) {
       active?.challenge.destroy();
       abort?.();
       loopResume?.(); // let a loop parked on "wait for resume" see it's over and exit
+      releaseFocus();
       app.onAppPause = null;
       fitObserver.disconnect();
       window.removeEventListener('resize', onResize);
