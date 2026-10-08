@@ -1,6 +1,7 @@
 import { h } from '../../utils/dom.js';
 import { t } from '../../game/i18n.js';
-import { go, logo, toast } from '../ui.js';
+import { go, toast } from '../ui.js';
+import { logo } from '../logo.js';
 import { profile } from '../../game/playerProfile.js';
 import { SKILLS, SKILL_IDS } from '../../data/skills.js';
 import { radarChart } from '../charts.js';
@@ -146,7 +147,7 @@ export function homeScreen() {
   );
 
   const onKey = (e) => {
-    if (e.target.closest?.('input, select, textarea')) return;
+    if (e.target.closest?.('input, select, textarea') || e.ctrlKey || e.metaKey || e.altKey) return;
     if (e.key === 'Enter' && document.activeElement === document.body) play();
     else if (e.key.toLowerCase() === 'd') go('play', { mode: 'daily' });
     else if (e.key.toLowerCase() === 'p') go('profile');

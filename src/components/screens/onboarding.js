@@ -1,7 +1,8 @@
 // First-launch onboarding: four swipeable animated slides.
 import { h } from '../../utils/dom.js';
 import { t } from '../../game/i18n.js';
-import { go, logo } from '../ui.js';
+import { go } from '../ui.js';
+import { logo } from '../logo.js';
 import { storage } from '../../game/storage.js';
 import { SKILLS, SKILL_IDS } from '../../data/skills.js';
 import { radarChart } from '../charts.js';

@@ -105,4 +105,6 @@ Note: SYNAPSE is a game. Its scores reflect performance within its own tasks; it
 | Anuncios | No contiene anuncios |
 | Seguridad de los datos | No se recopilan ni se comparten datos. Los datos no se cifran en tránsito porque no se transmiten. |
 | Política de privacidad | URL pública de `privacy.html` (ver README, sección GitHub Pages) |
+| Nombre del desarrollador | `Dark_Hyper` (el mismo que nombra `privacy.html`; si cambia, cambiar ambos) |
+| Correo de contacto | `darkhyper93@gmail.com` (el mismo que nombra `privacy.html`) |
 | Gráficos | `store/icon-512.png`, `store/feature-graphic-es.png` (es-ES), `store/feature-graphic-en.png` (en-US), `store/screenshots/*` |

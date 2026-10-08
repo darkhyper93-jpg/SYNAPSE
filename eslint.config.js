@@ -1,4 +1,4 @@
-// Minimal lint config (ESLint flat config). Run: npx eslint src tests
+// Minimal lint config (ESLint flat config). Run: npm run lint (ESLint is pinned in devDependencies)
 export default [
   {
     files: ['**/*.js', '**/*.mjs'],

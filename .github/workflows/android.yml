@@ -9,6 +9,10 @@ on:
   pull_request:
   workflow_dispatch:
 
+# The job only reads the repository; artifacts don't need a write token.
+permissions:
+  contents: read
+
 jobs:
   android:
     runs-on: ubuntu-latest
@@ -26,6 +30,9 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Lint
+        run: npm run lint
 
       - name: Engine tests
         run: npm test

@@ -291,7 +291,6 @@ export class SessionManager {
     return summary;
   }
 
-  /** Build the session summary and persist it. */
   /** Play time so far, pauses excluded (monotonic clock). */
   playedMs() {
     return Math.max(0, Math.round((this.pausedAt ?? clock()) - this.t0 - this.pausedMs));

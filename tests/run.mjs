@@ -20,14 +20,22 @@ const { SKILL_IDS } = await import('../src/data/skills.js');
 
 let passed = 0;
 let failed = 0;
+const pending = []; // async tests: awaited before the totals are printed
 function test(name, fn) {
-  try {
-    fn();
+  const pass = () => {
     passed++;
     console.log(`  ✓ ${name}`);
-  } catch (e) {
+  };
+  const fail = (e) => {
     failed++;
     console.log(`  ✗ ${name}\n    ${e.stack?.split('\n').slice(0, 3).join('\n    ')}`);
+  };
+  try {
+    const r = fn();
+    if (r && typeof r.then === 'function') pending.push(r.then(pass, fail));
+    else pass();
+  } catch (e) {
+    fail(e);
   }
 }
 const assert = (cond, msg = 'assertion failed') => {
@@ -369,5 +377,123 @@ test('dynamic keys: every skill, challenge, colour, shape, mirror op', async () 
   assert(!missing.length, missing.join(', '));
 });
 
+console.log('\nDurable saves (IndexedDB copy of the progress keys)');
+// Minimal in-memory stand-ins for localStorage and IndexedDB (only what durable.js uses).
+function fakeLocalStorage(init = {}) {
+  const m = new Map(Object.entries(init));
+  return { m, getItem: (k) => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)), removeItem: (k) => m.delete(k) };
+}
+function fakeIndexedDB(init = {}, { hang = false } = {}) {
+  const data = new Map(Object.entries(init));
+  const db = {
+    createObjectStore() {},
+    transaction(_name, mode) {
+      const tx = {};
+      const puts = [];
+      tx.objectStore = () => ({
+        put: (v, k) => puts.push([k, v]),
+        openCursor() {
+          const req = {};
+          const entries = [...data];
+          let i = 0;
+          const step = () => {
+            req.result = i < entries.length ? { key: entries[i][0], value: entries[i][1], continue: () => (i++, queueMicrotask(step)) } : null;
+            req.onsuccess?.();
+            if (!req.result) queueMicrotask(() => tx.oncomplete?.());
+          };
+          queueMicrotask(step);
+          return req;
+        },
+      });
+      if (mode === 'readwrite') {
+        queueMicrotask(() => {
+          for (const [k, v] of puts) data.set(k, v);
+          tx.oncomplete?.();
+        });
+      }
+      return tx;
+    },
+  };
+  return {
+    data,
+    open() {
+      const req = {};
+      if (!hang) {
+        queueMicrotask(() => {
+          req.result = db;
+          if (!data.size) req.onupgradeneeded?.();
+          req.onsuccess?.();
+        });
+      }
+      return req;
+    },
+  };
+}
+const settle = () => new Promise((r) => setTimeout(r, 0));
+let durableRun = 0;
+async function withDurable(ls, idb, fn) {
+  const saved = { localStorage: globalThis.localStorage, indexedDB: globalThis.indexedDB };
+  globalThis.localStorage = ls;
+  globalThis.indexedDB = idb;
+  try {
+    const mod = await import(`../src/game/durable.js?run=${++durableRun}`); // fresh module state per scenario
+    return await fn(mod);
+  } finally {
+    globalThis.localStorage = saved.localStorage;
+    globalThis.indexedDB = saved.indexedDB;
+  }
+}
+const P = 'synapse.v1.';
+// the scenarios swap globals, so they run one after another
+let lane = Promise.resolve();
+const inLane = (fn) => {
+  const run = lane.then(fn);
+  lane = run.catch(() => {});
+  return run;
+};
+
+test('a newer IndexedDB copy wins over a localStorage that lost its last writes', () =>
+  inLane(() => withDurable(fakeLocalStorage({ [`${P}profile`]: '{"old":1}', [`${P}__seq`]: '5', [`${P}session.pending`]: '{"x":1}' }), fakeIndexedDB({ profile: '{"new":1}', 'session.pending': null, __seq: 7 }), async (d) => {
+    const ls = globalThis.localStorage;
+    assert((await d.restoreDurable()) === 'restored', 'expected restored');
+    assert(ls.getItem(`${P}profile`) === '{"new":1}', 'profile not restored');
+    assert(ls.getItem(`${P}session.pending`) === null, 'a removal in the copy must remove the key');
+    assert(ls.getItem(`${P}__seq`) === '7', 'counter not restored');
+  })));
+
+test('first run after the update: the copy is seeded from localStorage, nothing is overwritten', () => {
+  const idb = fakeIndexedDB();
+  return inLane(() => withDurable(fakeLocalStorage({ [`${P}profile`]: '{"mine":1}', [`${P}onboarded`]: 'true' }), idb, async (d) => {
+    assert((await d.restoreDurable()) === 'kept', 'expected kept');
+    await settle();
+    assert(globalThis.localStorage.getItem(`${P}profile`) === '{"mine":1}', 'localStorage changed');
+    assert(idb.data.get('profile') === '{"mine":1}' && idb.data.get('onboarded') === 'true' && idb.data.has('__seq'), 'copy not seeded');
+  }));
+});
+
+test('mirrored writes reach the copy with a counter ahead of the old one; other keys are ignored', () => {
+  const idb = fakeIndexedDB({ __seq: 3, profile: '{"a":1}' });
+  return inLane(() => withDurable(fakeLocalStorage({ [`${P}__seq`]: '3', [`${P}profile`]: '{"a":1}' }), idb, async (d) => {
+    await d.restoreDurable();
+    d.mirror('profile', '{"a":2}');
+    d.mirror('session.pending', null);
+    d.mirror('lastMode', '"quick"');
+    await settle();
+    await settle();
+    assert(idb.data.get('profile') === '{"a":2}', 'profile not mirrored');
+    assert(idb.data.get('session.pending') === null, 'removal not mirrored');
+    assert(!idb.data.has('lastMode'), 'non-progress key mirrored');
+    assert(idb.data.get('__seq') > 3 && String(idb.data.get('__seq')) === globalThis.localStorage.getItem(`${P}__seq`), 'counters out of step');
+  }));
+});
+
+test('a hung IndexedDB never blocks the start for long', () =>
+  inLane(() => withDurable(fakeLocalStorage(), fakeIndexedDB({}, { hang: true }), async (d) => {
+    const t0 = Date.now();
+    assert((await d.restoreDurable()) === 'skipped', 'expected skipped');
+    assert(Date.now() - t0 < 3000, 'waited too long');
+  })));
+
+await Promise.all(pending);
 console.log(`\n${passed} passed, ${failed} failed\n`);
 process.exit(failed ? 1 : 0);

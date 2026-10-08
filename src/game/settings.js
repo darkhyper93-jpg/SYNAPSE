@@ -35,9 +35,10 @@ let current = { ...DEFAULT_SETTINGS(), ...storage.load('settings', {}) };
 
 export const settings = {
   get: () => current,
-  set(patch) {
+  /** persist: false applies a value live without writing storage (e.g. while a slider is dragged). */
+  set(patch, { persist = true } = {}) {
     current = { ...current, ...patch };
-    storage.save('settings', current);
+    if (persist) storage.save('settings', current);
     listeners.forEach((fn) => fn(current));
   },
   reset() {

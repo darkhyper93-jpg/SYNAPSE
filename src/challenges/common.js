@@ -43,7 +43,7 @@ export function board(rows, cols, cellFn = () => '', { cls = '' } = {}) {
 
 /** Clickable board. Resolves with { index, rt } on first click. */
 export function clickBoard(ch, rows, cols, { cls = '', cellFn = () => '', container } = {}) {
-  const el = h(`div.board.is-clickable${cls ? '.' + cls : ''}`, { role: 'grid' });
+  const el = h(`div.board.is-clickable${cls ? '.' + cls : ''}`, { role: 'group' });
   el.style.setProperty('--cols', cols);
   el.style.setProperty('--rows', rows);
   const t0 = now();

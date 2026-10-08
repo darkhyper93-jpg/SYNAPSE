@@ -7,7 +7,7 @@
   "scripts": {
     "start": "npx --yes http-server -p 8080 -c-1 .",
     "test": "node tests/run.mjs",
-    "lint": "npx --yes eslint src tests",
+    "lint": "eslint src tests",
     "build": "node scripts/build-web.mjs",
     "cap:sync": "npm run build && npx cap sync android",
     "android": "npm run cap:sync && npx cap open android",
@@ -22,6 +22,7 @@
     "@capacitor/splash-screen": "^8.0.2"
   },
   "devDependencies": {
-    "@capacitor/cli": "^8.5.2"
+    "@capacitor/cli": "^8.5.2",
+    "eslint": "10.1.0"
   }
 }

@@ -22,7 +22,7 @@ function versionLabel() {
 
 /** Shows the bundled privacy policy inside the app (Back / tap ✕ closes it). */
 async function openPrivacy() {
-  let html = '';
+  let html;
   try {
     const doc = new DOMParser().parseFromString(await (await fetch('privacy.html')).text(), 'text/html');
     doc.querySelector('.back')?.remove();
@@ -98,8 +98,12 @@ export function settingsScreen() {
     step: 0.05,
     value: s.volume,
     'aria-label': t('set.volume'),
-    oninput: (e) => update({ volume: Number(e.target.value) }),
-    onchange: () => sfx('correct'),
+    // live while dragging, saved once when released
+    oninput: (e) => settings.set({ volume: Number(e.target.value) }, { persist: false }),
+    onchange: (e) => {
+      update({ volume: Number(e.target.value) });
+      sfx('correct');
+    },
   });
 
   const reset = async () => {

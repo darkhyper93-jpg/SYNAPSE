@@ -63,7 +63,6 @@ const SOUNDS = {
   },
 };
 
-/** Called when the app goes to background / comes back. */
 /**
  * Creating the AudioContext sets up the audio device synchronously (slow on some Android phones).
  * Do it while the app is idle after start-up, not inside the first PLAY tap.
@@ -84,6 +83,7 @@ export function warmAudio() {
   );
 }
 
+/** Called when the app goes to the background: the next sound resumes it. */
 export function suspendAudio() {
   if (ctx && ctx.state === 'running') ctx.suspend().catch(() => {});
 }

@@ -40,9 +40,10 @@ export function isLowPower() {
 export function initPlatform({ onBack, onPause, onResume }) {
   document.documentElement.classList.toggle('is-native', isNative());
 
-  // Long-press menus and pinch/double-tap zoom don't belong in a game.
+  // Long-press menus and pinch/double-tap zoom don't belong in a game. Text fields and the privacy
+  // policy keep them: its contact address must be copyable on a phone without a mail app.
   document.addEventListener('contextmenu', (e) => {
-    if (!e.target.closest?.('input, textarea')) e.preventDefault();
+    if (!e.target.closest?.('input, textarea, .doc-sheet')) e.preventDefault();
   });
   document.addEventListener('gesturestart', (e) => e.preventDefault());
   document.addEventListener('dblclick', (e) => e.preventDefault(), { passive: false });
