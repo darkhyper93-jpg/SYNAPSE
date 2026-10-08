@@ -5,8 +5,7 @@ import { settings, applySettings } from '../../game/settings.js';
 import { profile } from '../../game/playerProfile.js';
 import { sfx } from '../../game/audio.js';
 import { plugin } from '../../game/platform.js';
-
-const APP_VERSION = '1.0.0'; // web build; the Android app reports its own version and build below
+import { APP_VERSION } from '../../version.js';
 
 /** Version line: on Android it names the exact build (versionName + versionCode) testers run. */
 function versionLabel() {

@@ -12,14 +12,16 @@ def releaseStoreFile = signingValue('storeFile', 'SYNAPSE_KEYSTORE_FILE')
 
 // versionCode must grow with every Play upload, wherever the build runs (CI, Android Studio, a
 // re-run). It is derived from the HEAD commit time: tens of seconds since 2026-01-01, so it is the
-// same for the same commit everywhere and stays below Play's limit for centuries.
-// VERSION_CODE in the environment overrides it; without git it falls back to 1.
+// same for the same commit everywhere and stays below Play's limit for centuries. It grows with every
+// new commit; a build of an older commit (e.g. a hotfix branch) needs VERSION_CODE set above the
+// last upload. VERSION_CODE in the environment overrides it; without git it falls back to 1.
 def commitVersionCode = { ->
     try {
         def proc = ['git', 'log', '-1', '--format=%ct'].execute(null, rootDir)
         def out = proc.text.trim()
         proc.waitFor()
-        return (proc.exitValue() == 0 && out) ? (((out as long) - 1767225600L).intdiv(10) as int) : 0
+        def code = (proc.exitValue() == 0 && out) ? (((out as long) - 1767225600L).intdiv(10) as int) : 0
+        return code > 0 ? code : 0 // a commit dated before 2026 falls back to VERSION_CODE / 1
     } catch (ignored) {
         return 0
     }

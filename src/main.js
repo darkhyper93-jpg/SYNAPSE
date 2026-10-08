@@ -23,7 +23,9 @@ function matchSystemTextSize() {
   systemFontScale().then((scale) => {
     if (!scale) return;
     const closest = scale >= 1.25 ? 1.3 : scale >= 1.1 ? 1.15 : 1;
-    settings.set({ textScale: Math.max(settings.get().textScale, closest), systemTextChecked: true });
+    // only ever raises it: a size the player picked (S included) is kept with a default system font
+    const textScale = closest > 1 ? Math.max(settings.get().textScale, closest) : settings.get().textScale;
+    settings.set({ textScale, systemTextChecked: true });
     applySettings(settings.get());
   });
 }

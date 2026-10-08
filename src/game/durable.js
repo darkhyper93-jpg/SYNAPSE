@@ -22,19 +22,38 @@ let ready = null; // resolves once boot has compared both stores; mirrored write
 const queue = new Map(); // key -> raw JSON string, or null for a removal
 let flushing = false;
 
-const available = () => typeof indexedDB !== 'undefined' && typeof localStorage !== 'undefined';
+function available() {
+  try {
+    return typeof indexedDB !== 'undefined' && !!indexedDB && typeof localStorage !== 'undefined' && !!localStorage;
+  } catch {
+    return false; // blocked site data: even reading the storage globals throws
+  }
+}
 
 function openDb() {
   return new Promise((resolve, reject) => {
     const req = indexedDB.open(DB_NAME, 1);
     req.onupgradeneeded = () => req.result.createObjectStore(STORE);
-    req.onsuccess = () => resolve(req.result);
+    req.onsuccess = () => {
+      const conn = req.result;
+      // a connection the browser closes (storage pressure, data cleared) is reopened on the next write
+      conn.onclose = () => (dbPromise = null);
+      conn.onversionchange = () => {
+        conn.close();
+        dbPromise = null;
+      };
+      resolve(conn);
+    };
     req.onerror = () => reject(req.error);
     req.onblocked = () => reject(new Error('blocked'));
   });
 }
 let dbPromise = null;
-const db = () => (dbPromise ??= openDb());
+const db = () =>
+  (dbPromise ??= openDb().catch((err) => {
+    dbPromise = null; // a failed open is retried next time instead of being cached
+    throw err;
+  }));
 
 function readAll(conn) {
   return new Promise((resolve, reject) => {
@@ -80,7 +99,9 @@ function snapshotEntries(withSeq) {
  * Called once before the game modules load. If the IndexedDB copy is newer than what localStorage
  * came back with, it is written into localStorage (the game keeps reading localStorage
  * synchronously). Otherwise the copy is brought up to date. Never throws and never waits more than
- * RESTORE_TIMEOUT_MS: a slow or broken IndexedDB must not keep the game from starting.
+ * RESTORE_TIMEOUT_MS: a slow or broken IndexedDB must not keep the game from starting. If the copy
+ * turns out to be newer only after that (the game already started on the older data), it is still
+ * restored and the page reloads, so the newer progress is never overwritten.
  * @returns {Promise<'restored'|'kept'|'skipped'>}
  */
 export function restoreDurable() {
@@ -92,19 +113,23 @@ export function restoreDurable() {
       const saved = await readAll(conn);
       const local = lsSeq();
       const copy = Number(saved[SEQ]) || 0;
-      if (!late && copy > local) {
+      if (copy > local) {
         for (const k of DURABLE_KEYS) {
           const v = saved[k];
           if (typeof v === 'string') localStorage.setItem(PREFIX + k, v);
-          else localStorage.removeItem(PREFIX + k);
+          else if (v === null) localStorage.removeItem(PREFIX + k); // a recorded removal; a key the copy never had is left alone
         }
         localStorage.setItem(PREFIX + SEQ, String(copy));
         seq = copy;
+        if (late) {
+          queue.clear(); // writes made on the older data must not land on top of the restored copy
+          globalThis.location?.reload?.();
+        }
         return 'restored';
       }
-      // localStorage is current (or the boot already went ahead without the copy): make the copy match it
-      seq = Math.max(local, copy) + (late || copy !== local ? 1 : 0);
-      if (late || copy !== local || !(SEQ in saved)) {
+      // localStorage is current: make the copy match it
+      seq = Math.max(seq, local, copy) + (copy !== local ? 1 : 0);
+      if (copy !== local || !(SEQ in saved)) {
         try {
           localStorage.setItem(PREFIX + SEQ, String(seq));
         } catch {
@@ -130,16 +155,21 @@ export function restoreDurable() {
 async function flush() {
   if (flushing) return;
   flushing = true;
+  let entries = [];
   try {
     await ready;
     while (queue.size) {
-      const entries = [...queue];
+      entries = [...queue];
       queue.clear();
-      entries.push([SEQ, seq]);
-      await writeAll(await db(), entries);
+      await writeAll(await db(), [...entries, [SEQ, seq]]);
+      entries = [];
     }
   } catch {
-    queue.clear(); // IndexedDB unusable: localStorage alone keeps working as before
+    // IndexedDB unusable right now: localStorage keeps working as before. What didn't make it goes
+    // back in the queue (unless a newer value is already there) and the next save retries it with
+    // a fresh connection; the queue holds one value per key, so nothing piles up.
+    for (const [k, v] of entries) if (!queue.has(k)) queue.set(k, v);
+    dbPromise = null;
   } finally {
     flushing = false;
   }

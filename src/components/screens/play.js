@@ -80,10 +80,10 @@ export function playScreen({ mode = 'quick', typeId, difficulty } = {}) {
     const maxZ = big && !stage.querySelector('canvas') ? 1.45 : 1;
     let z = (availH - 6) / needH;
     if (needW && needW < availW) z = Math.min(z, (availW - 24) / needW);
-    else if (needW > availW) z = Math.min(z, availW / needW); // wider than the screen (5-column boards at 320 px)
+    else if (needW > availW) z = Math.min(z, (availW - 8) / needW); // wider than the screen (5-column boards at 320 px)
     z = Math.max(0.58, Math.min(maxZ, z));
     const dy = big ? Math.max(0, (availH - needH * z) / 2.4) : 0;
-    if (Math.abs(z - 1) < 0.03 && dy < 4) return;
+    if (Math.abs(z - 1) < 0.03 && dy < 4 && needW <= availW) return; // (overflowing content is always scaled)
     stage.style.transform = `translateY(${dy.toFixed(1)}px) scale(${z.toFixed(3)})`;
   };
   const fitObserver = new MutationObserver(fit);

@@ -82,7 +82,7 @@ Cada *push* ejecuta `.github/workflows/android.yml`, que:
 2. genera un **APK de depuración** (artefacto `synapse-debug-apk`) para instalarlo directamente en un móvil;
 3. si configuraste la firma (ver abajo), genera el **AAB firmado** para Google Play (artefacto `synapse-release-aab`).
 
-Los artefactos se descargan en GitHub → *Actions* → la ejecución → *Artifacts*. El `versionCode` sale de la hora del commit (decenas de segundos desde 2026-01-01): siempre aumenta, como exige Play, y es el mismo si compilas ese commit en local o vuelves a ejecutar el workflow. La versión visible (`versionName`) es la de `package.json`; Ajustes muestra ambas.
+Los artefactos se descargan en GitHub → *Actions* → la ejecución → *Artifacts*. El `versionCode` sale de la hora del commit (decenas de segundos desde 2026-01-01): aumenta con cada commit nuevo, como exige Play, y es el mismo si compilas ese commit en local o vuelves a ejecutar el workflow. Para compilar un commit más antiguo (una rama de corrección) define `VERSION_CODE` con un número mayor que el último subido. La versión visible (`versionName`) es la de `package.json`; Ajustes muestra ambas.
 
 El APK de depuración se firma siempre con la misma clave de prueba (`android/app/debug.keystore`, que no es secreta), así que cada versión nueva se instala encima de la anterior sin perder el progreso. El AAB de Google Play usa tu clave propia.
 

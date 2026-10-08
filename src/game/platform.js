@@ -85,7 +85,7 @@ function registerServiceWorker() {
   if (!('serviceWorker' in navigator)) return;
   const secure = location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1';
   if (!secure || new URLSearchParams(location.search).has('nosw')) return;
-  window.addEventListener('load', () => {
+  const register = () => {
     navigator.serviceWorker.register('sw.js').catch(() => {});
     // The first visit loads everything before the worker exists: hand it the list of files this
     // page actually used, so an app installed on that visit also opens offline.
@@ -95,5 +95,8 @@ function registerServiceWorker() {
         reg.active?.postMessage({ type: 'precache', urls });
       }, 3000),
     );
-  });
+  };
+  // the game starts after an async restore (boot.js), often once 'load' has already fired
+  if (document.readyState === 'complete') register();
+  else window.addEventListener('load', register, { once: true });
 }
