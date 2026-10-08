@@ -3,7 +3,7 @@ import { settings, applySettings } from './game/settings.js';
 import { setLang } from './game/i18n.js';
 import { storage } from './game/storage.js';
 import { suspendAudio, warmAudio } from './game/audio.js';
-import { initPlatform, isLowPower } from './game/platform.js';
+import { initPlatform, isLowPower, systemFontScale } from './game/platform.js';
 import { profile } from './game/playerProfile.js';
 import { TYPES_BY_ID } from './engine/challengeGenerator.js';
 import { app, mountRoot, registerScreen, go, handleBack, initTouchFeedback } from './components/ui.js';
@@ -14,10 +14,25 @@ import { profileScreen } from './components/screens/profile.js';
 import { settingsScreen } from './components/screens/settings.js';
 import { onboardingScreen } from './components/screens/onboarding.js';
 
+/**
+ * Android keeps the system font size out of the game's layouts (MainActivity), so once, the in-app
+ * text size is raised to the option closest to it: large-font players start with large text.
+ */
+function matchSystemTextSize() {
+  if (settings.get().systemTextChecked) return;
+  systemFontScale().then((scale) => {
+    if (!scale) return;
+    const closest = scale >= 1.25 ? 1.3 : scale >= 1.1 ? 1.15 : 1;
+    settings.set({ textScale: Math.max(settings.get().textScale, closest), systemTextChecked: true });
+    applySettings(settings.get());
+  });
+}
+
 function boot() {
   const s = settings.get();
   setLang(s.lang);
   applySettings(s);
+  matchSystemTextSize();
   const low = isLowPower() && !new URLSearchParams(location.search).has('hq');
   document.body.classList.toggle('low-power', low);
 

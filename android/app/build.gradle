@@ -10,6 +10,24 @@ if (keystorePropsFile.exists()) {
 def signingValue = { String key, String env -> keystoreProps.getProperty(key) ?: System.getenv(env) }
 def releaseStoreFile = signingValue('storeFile', 'SYNAPSE_KEYSTORE_FILE')
 
+// versionCode must grow with every Play upload, wherever the build runs (CI, Android Studio, a
+// re-run). It is derived from the HEAD commit time: tens of seconds since 2026-01-01, so it is the
+// same for the same commit everywhere and stays below Play's limit for centuries.
+// VERSION_CODE in the environment overrides it; without git it falls back to 1.
+def commitVersionCode = { ->
+    try {
+        def proc = ['git', 'log', '-1', '--format=%ct'].execute(null, rootDir)
+        def out = proc.text.trim()
+        proc.waitFor()
+        return (proc.exitValue() == 0 && out) ? (((out as long) - 1767225600L).intdiv(10) as int) : 0
+    } catch (ignored) {
+        return 0
+    }
+}
+def appVersionCode = ((System.getenv('VERSION_CODE') ?: '0') as int) ?: commitVersionCode() ?: 1
+// versionName follows package.json (the build number is shown next to it in Settings).
+def appVersionName = System.getenv('VERSION_NAME') ?: new groovy.json.JsonSlurper().parse(rootProject.file('../package.json')).version
+
 android {
     namespace = "com.darkhyper93.synapse"
     compileSdk = rootProject.ext.compileSdkVersion
@@ -17,9 +35,8 @@ android {
         applicationId "com.darkhyper93.synapse"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        // CI passes VERSION_CODE (must increase on every Play Store upload).
-        versionCode((System.getenv('VERSION_CODE') ?: '1') as int)
-        versionName System.getenv('VERSION_NAME') ?: "1.0.0"
+        versionCode appVersionCode
+        versionName appVersionName
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.

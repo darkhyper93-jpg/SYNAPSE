@@ -23,6 +23,7 @@ export const DEFAULT_SETTINGS = () => ({
   haptics: true,
   reducedMotion: prefersReduced(),
   textScale: 1,
+  systemTextChecked: false, // Android: textScale already matched once to the system font size
   colorAssist: false, // letter tags on colours
   highContrast: false,
   showKeyHints: true,

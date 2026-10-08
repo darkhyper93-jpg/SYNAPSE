@@ -122,8 +122,11 @@ export class TraceChallenge extends Challenge {
     const avail = this.hooks?.available?.() || { w: 600, h: 600 };
     const cssW = Math.max(240, Math.min(this.stage.clientWidth || avail.w || 600, 680, ((avail.h || 600) - 16) / H));
     const cssH = cssW * H;
+    // the computed size is a maximum: if the window narrows mid-round (fold, split screen) the canvas
+    // shrinks with it, keeping its aspect ratio; taps are mapped through getBoundingClientRect anyway
     canvas.style.width = `${cssW}px`;
-    canvas.style.height = `${cssH}px`;
+    canvas.style.maxWidth = '100%';
+    canvas.style.height = 'auto';
     canvas.width = Math.round(cssW * dpr);
     canvas.height = Math.round(cssH * dpr);
     const S = canvas.width; // scale: arena width 1 -> pixels

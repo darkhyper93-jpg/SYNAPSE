@@ -4,8 +4,21 @@ import { go, confirmDialog, toast, pushLayer } from '../ui.js';
 import { settings, applySettings } from '../../game/settings.js';
 import { profile } from '../../game/playerProfile.js';
 import { sfx } from '../../game/audio.js';
+import { plugin } from '../../game/platform.js';
 
-const APP_VERSION = '1.0.0';
+const APP_VERSION = '1.0.0'; // web build; the Android app reports its own version and build below
+
+/** Version line: on Android it names the exact build (versionName + versionCode) testers run. */
+function versionLabel() {
+  const el = h('p.set-help', `SYNAPSE v${APP_VERSION}`);
+  plugin('App')
+    ?.getInfo()
+    .then((i) => {
+      if (i?.version) el.textContent = `SYNAPSE v${i.version}${i.build ? ` (${i.build})` : ''}`;
+    })
+    .catch(() => {});
+  return el;
+}
 
 /** Shows the bundled privacy policy inside the app (Back / tap ✕ closes it). */
 async function openPrivacy() {
@@ -123,7 +136,7 @@ export function settingsScreen() {
     ),
     h('section.set-group.about', h('h3', t('set.about')), h('p', { html: t('set.aboutBody') }),
       h('div.set-row', h('div.set-text', h('b', t('set.privacy')), h('small', t('set.privacyDesc'))), h('button.btn.btn-ghost', { type: 'button', onclick: () => openPrivacy() }, t('set.privacyBtn'))),
-      h('p.set-help', `SYNAPSE v${APP_VERSION}`),
+      versionLabel(),
     ),
   );
 

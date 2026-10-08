@@ -1,4 +1,4 @@
-// Captures Play Store screenshots (phone 1080×1920, tablet 1600×2560) with a demo profile.
+// Captures Play Store screenshots (phone 1080×1920, tablet 1440×2560, 9:16 as Play requires for large-screen listings) with a demo profile.
 // Dev-only: needs Playwright + a local server (`npm start`), e.g. `node scripts/store-screenshots.cjs http://localhost:8080`
 const path = require('node:path');
 const fs = require('node:fs');
@@ -99,6 +99,6 @@ const shots = [
 
 (async () => {
   await capture({ viewport: { width: 360, height: 640 }, deviceScaleFactor: 3 }, 'phone', shots);
-  await capture({ viewport: { width: 800, height: 1280 }, deviceScaleFactor: 2 }, 'tablet', shots.filter(([n]) => ['home', 'mirror', 'results', 'profile'].includes(n)));
+  await capture({ viewport: { width: 900, height: 1600 }, deviceScaleFactor: 1.6 }, 'tablet', shots.filter(([n]) => ['home', 'mirror', 'results', 'profile'].includes(n)));
   console.log('screenshots in', OUT);
 })();

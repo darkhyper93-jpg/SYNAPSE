@@ -18,7 +18,8 @@
       "androidScaleType": "CENTER_CROP"
     },
     "SystemBars": {
-      "initialViewportFitValueHint": "cover"
+      "initialViewportFitValueHint": "cover",
+      "style": "DARK"
     }
   }
 }

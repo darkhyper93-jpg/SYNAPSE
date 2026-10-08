@@ -23,8 +23,8 @@ cpSync(runtime, join(out, 'capacitor.js'));
 
 // Load the Capacitor runtime before the game module (native builds only).
 const html = readFileSync(join(root, 'index.html'), 'utf8').replace(
-  '<script type="module" src="src/main.js"></script>',
-  '<script src="capacitor.js"></script>\n    <script type="module" src="src/main.js"></script>',
+  '<link rel="modulepreload" href="src/main.js" />',
+  '<script src="capacitor.js"></script>\n    <link rel="modulepreload" href="src/main.js" />',
 );
 writeFileSync(join(out, 'index.html'), html);
 console.log('www/ ready');

@@ -53,9 +53,30 @@ const roundIcon = (S) => svg(S, S, `
   <g clip-path="url(#c)"><rect width="${S}" height="${S}" fill="url(#bg)"/><circle cx="${S / 2}" cy="${S / 2}" r="${S * 0.42}" fill="url(#halo)"/></g>
   ${markAt(S, S, S * 0.56)}`);
 
-// Adaptive icon layers: 108dp canvas, safe zone ≈ 66dp.
-const foreground = (S) => svg(S, S, markAt(S, S, S * 0.5));
-const monochrome = (S) => svg(S, S, markAt(S, S, S * 0.5, { stroke: '#fff', fill: '#fff', glow: false }));
+// Adaptive icon layers: 108dp canvas, of which the launcher shows the central 72dp (safe zone ≈ 66dp).
+// Inside that 72dp the layers reproduce fullIcon: same background, halo, ring and mark proportions.
+const VISIBLE = 72 / 108;
+const LAYER_MARK = 0.62 * VISIBLE;
+const foreground = (S) => svg(S, S, markAt(S, S, S * LAYER_MARK));
+const monochrome = (S) => svg(S, S, markAt(S, S, S * LAYER_MARK, { stroke: '#fff', fill: '#fff', glow: false }));
+const adaptiveBackground = (S) => {
+  const v = S * VISIBLE; // the visible box, centred
+  const o = (S - v) / 2;
+  return svg(S, S, `
+  <radialGradient id="bgA" gradientUnits="userSpaceOnUse" cx="${S / 2}" cy="${o + v * 0.38}" r="${v * 0.78}"><stop offset="0" stop-color="#2a1a6e"/><stop offset=".5" stop-color="#0c0e2a"/><stop offset="1" stop-color="#05060f"/></radialGradient>
+  <rect width="${S}" height="${S}" fill="url(#bgA)"/>
+  <circle cx="${S / 2}" cy="${S / 2}" r="${v * 0.42}" fill="url(#halo)"/>
+  <circle cx="${S / 2}" cy="${S / 2}" r="${v * 0.4}" fill="none" stroke="url(#g)" stroke-opacity=".28" stroke-width="${v * 0.012}"/>`);
+};
+
+// Android 12+ splash icon: 288dp canvas, transparent, everything inside the central 192dp circle.
+const splashIcon = (S) => {
+  const v = (S * 192) / 288 / 0.84; // a fullIcon whose halo (r = .42) fills the 192dp circle
+  return svg(S, S, `
+  <circle cx="${S / 2}" cy="${S / 2}" r="${v * 0.42}" fill="url(#halo)"/>
+  <circle cx="${S / 2}" cy="${S / 2}" r="${v * 0.4}" fill="none" stroke="url(#g)" stroke-opacity=".28" stroke-width="${v * 0.012}"/>
+  ${markAt(S, S, v * 0.62)}`);
+};
 
 const splash = (W, H) => {
   const m = Math.min(W, H);
@@ -66,7 +87,7 @@ const splash = (W, H) => {
     <text x="${W / 2}" y="${H / 2 + m * 0.2}" text-anchor="middle" font-family="SG" font-weight="700" font-size="${m * 0.085}" letter-spacing="${m * 0.012}" fill="url(#g)">SYNAPSE</text>`);
 };
 
-const feature = (W = 1024, H = 500) => {
+const feature = (tagline, W = 1024, H = 500) => {
   // decorative neural network
   let net = '';
   const pts = [];
@@ -86,7 +107,7 @@ const feature = (W = 1024, H = 500) => {
     <circle cx="${W / 2}" cy="${H / 2}" r="230" fill="url(#halo)"/>
     <g transform="translate(-292 -18)">${markAt(W, H, 128)}</g>
     <text x="${W / 2 + 78}" y="${H / 2 + 20}" text-anchor="middle" font-family="SG" font-weight="700" font-size="96" letter-spacing="9" fill="url(#g)">SYNAPSE</text>
-    <text x="${W / 2}" y="${H / 2 + 112}" text-anchor="middle" font-family="SG" font-weight="500" font-size="28" letter-spacing="9" fill="#c9cff5">THE GAME LEARNS HOW YOU PLAY</text>`);
+    <text x="${W / 2}" y="${H / 2 + 112}" text-anchor="middle" font-family="SG" font-weight="500" font-size="28" letter-spacing="9" fill="#c9cff5">${tagline}</text>`);
 };
 
 async function render(page, markup, file, W, H, transparent = false) {
@@ -112,7 +133,9 @@ async function render(page, markup, file, W, H, transparent = false) {
   await r(fullIcon(512, 0.46), path.join(ROOT, 'assets/icons/maskable-512.png'), 512, 512);
   // Play Store
   await r(fullIcon(512), path.join(ROOT, 'store/icon-512.png'), 512, 512);
-  await r(feature(), path.join(ROOT, 'store/feature-graphic.png'), 1024, 500);
+  // one feature graphic per store language (same tagline as the game's home screen)
+  await r(feature('EL JUEGO APRENDE CÓMO JUEGAS'), path.join(ROOT, 'store/feature-graphic-es.png'), 1024, 500);
+  await r(feature('THE GAME LEARNS HOW YOU PLAY'), path.join(ROOT, 'store/feature-graphic-en.png'), 1024, 500);
 
   // Android launcher icons
   const dens = { mdpi: 1, hdpi: 1.5, xhdpi: 2, xxhdpi: 3, xxxhdpi: 4 };
@@ -122,6 +145,9 @@ async function render(page, markup, file, W, H, transparent = false) {
     await r(fullIcon(legacy, 0.62, legacy * 0.2), path.join(RES, `mipmap-${d}/ic_launcher.png`), legacy, legacy, true);
     await r(roundIcon(legacy), path.join(RES, `mipmap-${d}/ic_launcher_round.png`), legacy, legacy, true);
     await r(foreground(layer), path.join(RES, `mipmap-${d}/ic_launcher_foreground.png`), layer, layer, true);
+    await r(adaptiveBackground(layer), path.join(RES, `mipmap-${d}/ic_launcher_background.png`), layer, layer);
+    const sp = Math.round(288 * k);
+    await r(splashIcon(sp), path.join(RES, `drawable-${d}/splash_icon.png`), sp, sp, true);
     await r(monochrome(layer), path.join(RES, `mipmap-${d}/ic_launcher_monochrome.png`), layer, layer, true);
   }
 

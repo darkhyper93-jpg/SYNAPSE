@@ -82,7 +82,7 @@ Cada *push* ejecuta `.github/workflows/android.yml`, que:
 2. genera un **APK de depuración** (artefacto `synapse-debug-apk`) para instalarlo directamente en un móvil;
 3. si configuraste la firma (ver abajo), genera el **AAB firmado** para Google Play (artefacto `synapse-release-aab`).
 
-Los artefactos se descargan en GitHub → *Actions* → la ejecución → *Artifacts*. El `versionCode` es el número de ejecución, así que siempre aumenta, como exige Play.
+Los artefactos se descargan en GitHub → *Actions* → la ejecución → *Artifacts*. El `versionCode` sale de la hora del commit (decenas de segundos desde 2026-01-01): siempre aumenta, como exige Play, y es el mismo si compilas ese commit en local o vuelves a ejecutar el workflow. La versión visible (`versionName`) es la de `package.json`; Ajustes muestra ambas.
 
 El APK de depuración se firma siempre con la misma clave de prueba (`android/app/debug.keystore`, que no es secreta), así que cada versión nueva se instala encima de la anterior sin perder el progreso. El AAB de Google Play usa tu clave propia.
 
@@ -122,8 +122,8 @@ Requisitos: Android Studio reciente (SDK 36) y JDK 21.
 3. Crea la app y sube el `.aab` a **Pruebas internas**. Las cuentas personales nuevas deben hacer además una **prueba cerrada con al menos 12 testers durante 14 días** antes de publicar en producción.
 4. Completa la ficha con lo que hay en `store/`:
    - `listing.md`: nombre, descripciones ES/EN, categoría y respuestas para "Seguridad de los datos";
-   - `icon-512.png` y `feature-graphic.png` (1024×500);
-   - `screenshots/{es,en}/phone-*.png` (1080×1920) y `tablet-*.png` (1600×2560).
+   - `icon-512.png` y `feature-graphic-es.png` / `feature-graphic-en.png` (1024×500, uno por idioma de la ficha);
+   - `screenshots/{es,en}/phone-*.png` (1080×1920) y `tablet-*.png` (1440×2560, 9:16 como pide Play para pantallas grandes).
 5. **Política de privacidad**: Play pide una URL pública. Activa GitHub Pages (*Settings → Pages → Deploy from branch*, raíz). La política queda en `https://<usuario>.github.io/SYNAPSE/privacy.html`, y de paso el juego queda jugable como web/PWA en esa dirección. La misma política está dentro de la app, en *Ajustes → Política de privacidad*.
 
 ### Regenerar recursos gráficos

@@ -6,7 +6,7 @@ export default [
       ecmaVersion: 2023,
       sourceType: 'module',
       globals: {
-        window: 'readonly', document: 'readonly', navigator: 'readonly', localStorage: 'readonly', location: 'readonly',
+        window: 'readonly', document: 'readonly', navigator: 'readonly', localStorage: 'readonly', indexedDB: 'readonly', queueMicrotask: 'readonly', location: 'readonly',
         performance: 'readonly', requestAnimationFrame: 'readonly', cancelAnimationFrame: 'readonly',
         setTimeout: 'readonly', clearTimeout: 'readonly', setInterval: 'readonly', clearInterval: 'readonly',
         console: 'readonly', process: 'readonly', structuredClone: 'readonly', Node: 'readonly',

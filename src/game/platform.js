@@ -17,6 +17,16 @@ export function plugin(name) {
   return plugins[name];
 }
 
+/** The Android system font size (1 = default; see MainActivity), or null on the web. */
+export function systemFontScale() {
+  const display = plugin('Display');
+  if (!display) return Promise.resolve(null);
+  return display
+    .getFontScale()
+    .then((r) => Number(r?.fontScale) || null)
+    .catch(() => null);
+}
+
 export function isLowPower() {
   const cores = navigator.hardwareConcurrency || 8;
   const mem = navigator.deviceMemory || 8;
@@ -39,14 +49,14 @@ export function initPlatform({ onBack, onPause, onResume }) {
 
   if (isNative()) {
     const App = plugin('App');
+    // Back with nothing left to close sends the app to the background (the Android 12+ default for
+    // a launcher activity) instead of destroying it, so coming back is a warm resume, not a cold start.
     App?.addListener('backButton', () => {
-      if (!onBack()) App.exitApp();
+      if (!onBack()) App.minimizeApp();
     });
     App?.addListener('pause', () => onPause());
     App?.addListener('resume', () => onResume?.());
-    const StatusBar = plugin('StatusBar');
-    StatusBar?.setStyle({ style: 'DARK' }).catch(() => {});
-    StatusBar?.setBackgroundColor({ color: '#05060f' }).catch(() => {});
+    // System bars: light icons on the dark game come from capacitor.config.json (SystemBars.style = DARK).
     plugin('SplashScreen')?.hide().catch(() => {});
   } else {
     // Browser / installed PWA: keep one guard history entry so the hardware back
