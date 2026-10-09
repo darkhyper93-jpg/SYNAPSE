@@ -31,6 +31,11 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # Libraries that ship inside the app: stop on a known high or critical vulnerability. Build-only tools
+      # (the Capacitor CLI and what it pulls in) never reach players and are left out.
+      - name: Audit shipped dependencies
+        run: npm audit --omit=dev --audit-level=high
+
       - name: Lint
         run: npm run lint
 
