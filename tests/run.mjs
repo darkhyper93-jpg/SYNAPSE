@@ -275,16 +275,23 @@ function allAnswered(plan, missAt = -1) {
   return Array.from({ length: k }, (_, i) => ({ ...(i === missAt ? wrong : right), weight: units / k }));
 }
 test('stepping away once every answer is in counts the whole challenge, end bonus included', () => {
-  const sm = new SessionManager({ mode: 'quick', profile: freshProfile(), seed: 13 }).startSession();
-  const plan = sm.next();
-  const trials = allAnswered(plan, 0);
-  assert(trials.length >= 3, `needs a few answers (${trials.length})`);
-  playInto(sm, plan, trials);
-  const want = challengeBonus(plan.challenge.getResult(), sm.mode.scoreMult).bonus;
+  // seed 13 deals ECHO at d 0.2 (×1.4), 3 questions: one miss → 2/3 right → bonus 150 × 1.4 × 1/3 = 70
+  const played = () => {
+    const sm = new SessionManager({ mode: 'quick', profile: new PlayerProfile(), seed: 13 }).startSession();
+    const plan = sm.next();
+    playInto(sm, plan, allAnswered(plan, 0));
+    return { sm, plan };
+  };
+  const { sm, plan } = played();
+  assert(plan.typeId === 'echo' && plan.challenge.pointUnits() === 3, `fixture changed: ${plan.typeId}`);
   const closed = sm.interruptCurrent({ elapsedMs: 8000, seen: true });
   assert(closed && !closed.early, 'nothing was left to play: not an early close');
-  assert(want > 0 && closed.bonus === want, `bonus ${closed?.bonus}, want ${want}`);
-  assert(Math.abs(closed.accuracy - (trials.length - 1) / trials.length) < 1e-9, `accuracy ${closed.accuracy}`);
+  assert(closed.bonus === 70, `bonus ${closed?.bonus}, want 70`);
+  assert(Math.abs(closed.accuracy - 2 / 3) < 1e-9, `accuracy ${closed.accuracy}`);
+  // the same as letting the feedback play out
+  const twin = played();
+  twin.sm.completeChallenge(twin.plan.challenge, twin.plan.challenge.getResult());
+  assert(sm.score === twin.sm.score && sm.index === twin.sm.index, `score ${sm.score}/${twin.sm.score}`);
 });
 test('a flawless challenge is kept when the pause lands on its last feedback', () => {
   const sm = new SessionManager({ mode: 'daily', profile: freshProfile() }).startSession();
