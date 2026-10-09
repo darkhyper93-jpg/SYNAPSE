@@ -7,6 +7,9 @@ export const BASE_POINTS = 100;
 // A flawless challenge is worth as much as POINT_UNITS full questions, whatever its format: a stream of
 // twenty quick taps and three long puzzles get the same budget (see Challenge.pointUnits()).
 export const POINT_UNITS = 3;
+// A miss takes back 4 × its share of the budget: at 80 % right (what adaptive difficulty aims for) the
+// run holds steady, above it grows, below it shrinks, whatever the format.
+export const LOSS_PER_MISS = 4;
 
 export function difficultyMultiplier(d) {
   return 1 + 2 * clamp(d);
@@ -33,11 +36,14 @@ export function trialRaw({ correct, rt, targetTime, weight = 1 }, { difficulty, 
   return BASE_POINTS * difficultyMultiplier(difficulty) * (speed ?? speedFactor(rt, targetTime)) * streakMultiplier(streak) * weight * scale * modeMult;
 }
 
-/** Consistency bonus at the end of a challenge. */
+/**
+ * Bonus at the end of a challenge, growing with accuracy: nothing at 50 % or less, the full 150 at 100 %.
+ * Smooth, so a long stream of quick taps (which almost never ends flawless) and three long questions
+ * (which often do) are paid alike for the same accuracy.
+ */
 export function challengeBonus(result, modeMult = 1) {
   if (result.trials < 2) return { bonus: 0, perfect: false };
   const m = difficultyMultiplier(result.difficulty) * modeMult;
-  if (result.accuracy >= 0.999) return { bonus: Math.round((150 * m) / 5) * 5, perfect: true };
-  if (result.accuracy >= 0.8) return { bonus: Math.round((50 * m) / 5) * 5, perfect: false };
-  return { bonus: 0, perfect: false };
+  const share = clamp((result.accuracy - 0.5) / 0.5);
+  return { bonus: Math.round((150 * m * share) / 5) * 5, perfect: result.accuracy >= 0.999 };
 }

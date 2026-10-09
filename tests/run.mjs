@@ -9,7 +9,7 @@ storage.use(new MemoryAdapter());
 const { CHALLENGE_TYPES, TYPES_BY_ID, isUnlocked, createChallenge, generateMemoryChallenge, generatePatternChallenge } = await import('../src/engine/challengeGenerator.js');
 const { RNG } = await import('../src/utils/rng.js');
 const { DifficultyManager } = await import('../src/engine/difficultyManager.js');
-const { trialRaw, streakMultiplier } = await import('../src/engine/scoreSystem.js');
+const { trialRaw, streakMultiplier, challengeBonus } = await import('../src/engine/scoreSystem.js');
 const { PlayerProfile } = await import('../src/game/playerProfile.js');
 const { SessionManager } = await import('../src/engine/sessionManager.js');
 const { dailyInfo } = await import('../src/engine/daily.js');
@@ -481,6 +481,73 @@ test('k flawless challenges in a row give exactly the multiplier of 3k point uni
     });
   }
   assert(!off.length, `${off.length} drifted, e.g. ${off.slice(0, 3).join(', ')}`);
+});
+
+console.log('\nA miss costs the multiplier its share, never the whole run');
+// heat built by k flawless challenges (each adds exactly 3 units)
+function warmSession(k) {
+  const sm = new SessionManager({ mode: 'quick', profile: new PlayerProfile() }).startSession();
+  for (let i = 0; i < k; i++) {
+    const ch = createChallenge('echo', 0.5, { rng: new RNG(`warm-${i}`) });
+    flawlessTrials(ch).forEach((tr) => sm.onTrial(tr, ch));
+  }
+  return sm;
+}
+const fakeChallenge = (units) => ({ difficulty: 0.5, pointUnits: () => units }); // only what scoring reads
+const miss = { correct: false, rt: null, weight: 1, feedback: 'full' };
+const hit = { correct: true, rt: 1000, targetTime: 1000, weight: 1, feedback: 'full' };
+test('a miss in a three-question challenge costs 4 units of heat; the streak still resets', () => {
+  const sm = warmSession(3);
+  sm.onTrial(miss, fakeChallenge(3));
+  assert(sm.heatNow() === 5, `heat ${sm.heatNow()}`);
+  assert(sm.streak === 0, `streak ${sm.streak}`);
+  assert(sm.multiplier() === streakMultiplier(5), `×${sm.multiplier()}`);
+});
+test('a miss in a 20-card stream costs 4 × its share (0.6 units), not the whole run', () => {
+  const sm = warmSession(3);
+  const ch = createChallenge('flex', 0.5, { rng: new RNG('miss-flex') });
+  sm.onTrial(miss, ch);
+  const want = 9 - (4 * 3) / ch.pointUnits();
+  assert(Math.abs(sm.heatNow() - want) < 1e-6, `heat ${sm.heatNow()}, want ${want}`);
+});
+test('heat never goes below 0', () => {
+  const sm = warmSession(0);
+  const ch = fakeChallenge(3);
+  sm.onTrial(hit, ch);
+  sm.onTrial(miss, ch);
+  assert(sm.heatNow() === 0, `heat ${sm.heatNow()}`);
+});
+test("FLEX's forgiven slip right after a switch costs no heat", () => {
+  const sm = warmSession(2);
+  sm.onTrial({ correct: false, rt: null, weight: 0.5, forgiving: true, feedback: 'mini' }, createChallenge('flex', 0.5, { rng: new RNG('forgive') }));
+  assert(sm.heatNow() === 6, `heat ${sm.heatNow()}`);
+});
+test('at the adaptive target (80 % right) the multiplier holds steady', () => {
+  const sm = warmSession(3);
+  const ch = fakeChallenge(5);
+  [hit, hit, miss, hit, hit].forEach((tr) => sm.onTrial(tr, ch));
+  assert(sm.heatNow() === 9, `heat ${sm.heatNow()}`);
+});
+test('where the misses fall in a challenge does not change the heat it ends with', () => {
+  const run = (order) => {
+    const sm = warmSession(4);
+    const ch = fakeChallenge(20);
+    order.forEach((tr) => sm.onTrial(tr, ch));
+    return sm.heatNow();
+  };
+  const early = run([...Array(4).fill(miss), ...Array(16).fill(hit)]);
+  const late = run([...Array(16).fill(hit), ...Array(4).fill(miss)]);
+  assert(early === late && early === 12, `misses first → ${early}, misses last → ${late}`);
+});
+test('the end-of-challenge bonus grows with accuracy: 150 at 100 %, 90 at 80 %, nothing at 50 % or less', () => {
+  const b = (accuracy, difficulty = 0, trials = 3, mode = 1) => challengeBonus({ accuracy, difficulty, trials }, mode);
+  const got = [1, 0.9, 0.8, 0.5, 0.3].map((a) => b(a).bonus);
+  assert(JSON.stringify(got) === '[150,120,90,0,0]', `bonuses ${got}`);
+  assert(b(1).perfect && b(0.999).perfect && !b(0.998).perfect, 'perfect only from 99.9 %');
+  assert(b(0.8, 1).bonus === 270, `×3 at the top difficulty: ${b(0.8, 1).bonus}`);
+  assert(b(0.8, 0, 3, 1.25).bonus === 115, `challenge mode ×1.25: ${b(0.8, 0, 3, 1.25).bonus}`);
+  assert(b(1, 0, 1).bonus === 0, 'a single trial earns no bonus');
+  assert([0.61, 0.73, 0.97].every((a) => b(a).bonus % 5 === 0), 'always a multiple of 5');
 });
 
 test('the web version label matches package.json (Android reads its versionName from there)', async () => {

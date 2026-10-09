@@ -6,7 +6,7 @@ import { SKILL_IDS, CORE_SKILLS } from '../data/skills.js';
 import { RNG } from '../utils/rng.js';
 import { clamp, mean } from '../utils/math.js';
 import { DifficultyManager } from './difficultyManager.js';
-import { trialRaw, speedFactor, challengeBonus, streakMultiplier, POINT_UNITS } from './scoreSystem.js';
+import { trialRaw, speedFactor, challengeBonus, streakMultiplier, POINT_UNITS, LOSS_PER_MISS } from './scoreSystem.js';
 import { CHALLENGE_TYPES, TYPES_BY_ID, typesForSkill, isUnlocked, createChallenge } from './challengeGenerator.js';
 import { dailyInfo } from './daily.js';
 
@@ -58,7 +58,7 @@ export class SessionManager {
     this.profileBefore = JSON.stringify(this.profile.state);
     this.score = 0;
     this.streak = 0; // correct answers in a row (what the HUD and "best streak" show)
-    this.heat = 0; // the same run measured in point units: drives the score multiplier
+    this.heat = 0; // the run in point units: a right answer adds its share, a miss takes back 4× it (multiplier)
     this.bestStreak = 0;
     this.errorRun = 0;
     this.history = []; // completed challenge summaries
@@ -256,7 +256,7 @@ export class SessionManager {
       }
     } else if (!trial.forgiving) {
       this.streak = 0;
-      this.heat = 0;
+      this.heat = Math.max(0, this.heat - LOSS_PER_MISS * (trial.weight ?? 1) * sc.scale);
       if (!lowWeight) this.errorRun += 1;
       if (this.errorRun >= 3) {
         this.frustrated = true;
