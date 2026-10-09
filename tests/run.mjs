@@ -219,10 +219,54 @@ test('a paused (discarded) challenge gives back its points and streak, never the
   sm.onTrial({ correct: true, weight: 1, rt: 400 }, plan.challenge);
   sm.onTrial({ correct: true, weight: 1, rt: 400 }, plan.challenge);
   assert(sm.score > 0 && sm.streak === 2);
-  sm.discardCurrent({ elapsedMs: 9000, seen: true });
+  sm.interruptCurrent({ elapsedMs: 9000, seen: true });
   assert(sm.score === 0 && sm.streak === 0 && sm.bestStreak === 0, `score ${sm.score} streak ${sm.streak}`);
   assert(sm.activeMs === 9000, 'time already played still counts');
   assert(sm.next(), 'a fresh challenge follows');
+});
+// Answers go through the challenge as in the game (recordTrial → hooks.onTrial → session).
+function playInto(sm, plan, trials) {
+  plan.challenge.hooks = { onTrial: (tr, ch) => sm.onTrial(tr, ch) };
+  trials.forEach((tr) => plan.challenge.recordTrial(tr));
+}
+const right = { correct: true, rt: 900, weight: 1 };
+const wrong = { correct: false, rt: null, weight: 1 };
+test('stepping away after a miss cannot undo it: the challenge ends with what was played', () => {
+  const p = freshProfile();
+  p.reset();
+  const sm = new SessionManager({ mode: 'quick', profile: p, seed: 11 }).startSession();
+  const plan = sm.next();
+  playInto(sm, plan, [right, wrong]);
+  const after = { score: sm.score, heat: sm.heatNow(), streak: sm.streak };
+  const closed = sm.interruptCurrent({ elapsedMs: 6000, seen: true });
+  assert(closed && closed.early, 'the challenge must close, not be thrown away');
+  assert(sm.score === after.score && sm.heatNow() === after.heat && sm.streak === after.streak, `score ${sm.score}/${after.score} heat ${sm.heatNow()}/${after.heat}`);
+  assert(closed.bonus === 0, `no end bonus for an unfinished challenge (got ${closed.bonus})`);
+  assert(sm.index === 1 && sm.history.length === 1, 'its slot is used');
+  assert(sm.next().challenge !== plan.challenge, 'the session moves on');
+});
+test('a challenge closed early is rated as if the rest had gone at the target accuracy', () => {
+  const sm = new SessionManager({ mode: 'quick', profile: freshProfile(), seed: 12 }).startSession();
+  const plan = sm.next();
+  const units = plan.challenge.pointUnits();
+  playInto(sm, plan, [right, wrong]);
+  const closed = sm.interruptCurrent({ elapsedMs: 4000, seen: true });
+  const want = (1 + 0.8 * Math.max(0, units - 2)) / Math.max(units, 2);
+  assert(Math.abs(closed.accuracy - want) < 1e-9, `accuracy ${closed.accuracy}, want ${want}`);
+});
+test('in the Daily, stepping away after a miss uses the slot: no second try at it', () => {
+  const sm = new SessionManager({ mode: 'daily', profile: freshProfile() }).startSession();
+  const plan = sm.next();
+  playInto(sm, plan, [wrong]);
+  sm.interruptCurrent({ elapsedMs: 3000, seen: true });
+  assert(sm.index === 1 && sm.next().typeId === sm.plan[1].typeId, 'the Daily goes on to its next slot');
+});
+test('stepping away with no miss yet still costs nothing but the time', () => {
+  const sm = new SessionManager({ mode: 'daily', profile: freshProfile() }).startSession();
+  const plan = sm.next();
+  playInto(sm, plan, [right, right]);
+  const closed = sm.interruptCurrent({ elapsedMs: 3000, seen: true });
+  assert(closed === null && sm.index === 0 && sm.score === 0 && sm.streak === 0, 'thrown away, slot kept');
 });
 test('quit without saving leaves the profile exactly as before', () => {
   const p = freshProfile();
@@ -314,9 +358,9 @@ test('a pause during the Daily never changes the remaining puzzles', () => {
   const b = new SessionManager({ mode: 'daily', profile: freshProfile() }).startSession();
   const first = content(a);
   assert(first === content(b), 'same first puzzle for everyone');
-  b.discardCurrent({ seen: false }); // paused on the intro card: same puzzle again
+  b.interruptCurrent({ seen: false }); // paused on the intro card: same puzzle again
   assert(content(b) === first);
-  b.discardCurrent({ seen: true }); // paused mid-puzzle: a different one for this slot only
+  b.interruptCurrent({ seen: true }); // paused mid-puzzle: a different one for this slot only
   assert(content(b) !== first);
   for (const sm of [a, b]) sm.completeChallenge(sm.current.challenge, { ...sm.current.challenge.getResult(), accuracy: 1, trials: 3, correct: 3, points: 10, duration: 1000, speedRatio: 1 });
   assert(content(a) === content(b), 'the next slot is the same for everyone again');

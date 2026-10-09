@@ -426,12 +426,13 @@ export function playScreen({ mode = 'quick', typeId, difficulty } = {}) {
     paused = true;
     pauseSeq += 1;
     session.pauseClock();
+    let closed = null;
     if (active) {
-      // the interrupted challenge is thrown away together with everything it earned
+      // the interrupted challenge never continues: thrown away, or ended where it was after a miss
       const elapsed = challengeStart ? now() - challengeStart : 0;
+      closed = session.interruptCurrent({ elapsedMs: elapsed, seen: elapsed > 0 });
       active.challenge.destroy();
       active = null;
-      session.discardCurrent({ elapsedMs: elapsed, seen: elapsed > 0 });
       shownScore = session.score;
       countUp(scoreEl, session.score, { duration: 0 });
       setStreak();
@@ -449,7 +450,7 @@ export function playScreen({ mode = 'quick', typeId, difficulty } = {}) {
       'div.pause-card',
       { role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'pause-title' },
       h('h2#pause-title', t('pause.title')),
-      h('p', t('pause.body')),
+      h('p', t(closed ? 'pause.bodyClosed' : 'pause.body')),
       h('button.btn.btn-primary', { type: 'button', onclick: resume }, t('pause.resume')),
       canEnd ? h('button.btn.btn-ghost', { type: 'button', onclick: () => endSession() }, t('pause.end')) : null,
       h('button.btn.btn-ghost.btn-danger-text', { type: 'button', onclick: () => quit() }, t('pause.quit')),

@@ -5,7 +5,7 @@
 import { SKILL_IDS, CORE_SKILLS } from '../data/skills.js';
 import { RNG } from '../utils/rng.js';
 import { clamp, mean } from '../utils/math.js';
-import { DifficultyManager } from './difficultyManager.js';
+import { DifficultyManager, TARGET_ACCURACY } from './difficultyManager.js';
 import { trialRaw, speedFactor, challengeBonus, streakMultiplier, POINT_UNITS, LOSS_PER_MISS } from './scoreSystem.js';
 import { CHALLENGE_TYPES, TYPES_BY_ID, typesForSkill, isUnlocked, createChallenge } from './challengeGenerator.js';
 import { dailyInfo } from './daily.js';
@@ -92,16 +92,35 @@ export class SessionManager {
   }
 
   /**
-   * The current challenge was interrupted (pause, app in background): it is thrown away, so is
-   * everything it earned. The time already spent in it still counts, so the clock never rewinds.
-   * seen: the player already saw its content (a Daily then deals a different one for this slot).
+   * The current challenge was interrupted (pause, app in background). Its timed stimuli can't pick up
+   * where they stopped, so it never continues:
+   * - nothing missed yet: it is thrown away with everything it earned and a fresh one takes the slot;
+   * - a miss already made: it ends there. What was played stands (points, the miss, the streak), the
+   *   slot is used and there is no end bonus, so stepping away can never undo a mistake.
+   * Either way the time already spent still counts. seen: the player already saw its content (a Daily
+   * then deals a different one for this slot).
+   * @returns the summary of the challenge that ended, or null if it was thrown away
    */
-  discardCurrent({ elapsedMs = 0, seen = false } = {}) {
-    if (!this.current) return;
+  interruptCurrent({ elapsedMs = 0, seen = false } = {}) {
+    if (!this.current) return null;
+    const { challenge } = this.current;
+    const trials = challenge.trials || [];
+    if (trials.some((tr) => !tr.correct && !tr.forgiving)) {
+      // Rated as if the part not played had gone at the target accuracy: an interruption neither
+      // drags the rating down nor lifts it.
+      const result = challenge.getResult();
+      const played = trials.reduce((s, tr) => s + Math.max(0, tr.weight), 0);
+      const won = trials.reduce((s, tr) => s + (tr.correct ? Math.max(0, tr.weight) : 0), 0);
+      const rest = Math.max(0, challenge.pointUnits() - played);
+      result.accuracy = (won + TARGET_ACCURACY * rest) / (played + rest);
+      result.duration = Math.max(0, elapsedMs);
+      return this.completeChallenge(challenge, result, { early: true });
+    }
     Object.assign(this, this.slotState);
     this.activeMs += Math.max(0, elapsedMs);
     if (seen) this.rerolls += 1;
     this.current = null;
+    return null;
   }
 
   /** Quit without saving: undo every profile change made during this session. */
@@ -124,7 +143,7 @@ export class SessionManager {
   /** Returns { challenge, skill, typeId, difficulty } or null when the session is over. */
   next() {
     if (this.isFinished()) return null;
-    // what discardCurrent() restores if this challenge gets interrupted
+    // what interruptCurrent() restores if this challenge gets interrupted
     this.slotState = {
       score: this.score,
       streak: this.streak,
@@ -285,9 +304,9 @@ export class SessionManager {
     return pts;
   }
 
-  /** Evaluate a finished challenge: bonuses, adaptation, profile. */
-  completeChallenge(challenge, result) {
-    const { bonus, perfect } = challengeBonus(result, this.mode.scoreMult);
+  /** Evaluate a finished challenge: bonuses, adaptation, profile. early: it ended at an interruption (no bonus). */
+  completeChallenge(challenge, result, { early = false } = {}) {
+    const { bonus, perfect } = early ? { bonus: 0, perfect: false } : challengeBonus(result, this.mode.scoreMult);
     this.score += bonus;
     result.points += bonus;
     const diff = this.dm.update(result.skill, result, this.rated ? this.mode.adapt : 'none');
@@ -321,6 +340,7 @@ export class SessionManager {
       ...result,
       bonus,
       perfect,
+      early,
       diffBefore: diff.before,
       diffAfter: this.profile.skill(result.skill).difficulty,
       ratingBefore: rec.primary.before,
