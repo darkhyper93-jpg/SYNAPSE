@@ -2,6 +2,9 @@
 <html lang="es">
   <head>
     <meta charset="utf-8" />
+    <!-- Only the game's own files may run or load. Inline styles stay allowed: templates set style="--i:…".
+         blob: is the logo's generated mask. -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; media-src 'self'; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'" />
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
     <title>SYNAPSE</title>
     <meta name="description" content="SYNAPSE — adaptive cognitive challenges. The game learns how you play." />

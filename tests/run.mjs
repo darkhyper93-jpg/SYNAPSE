@@ -841,6 +841,48 @@ test('a hung IndexedDB never blocks the start for long', () =>
     assert(Date.now() - t0 < 3000, 'waited too long');
   })));
 
+console.log('\nContent Security Policy');
+const REPO = join(dirname(fileURLToPath(import.meta.url)), '..');
+// the policy index.html declares, as { directive: [sources] }
+function pagePolicy() {
+  const html = readFileSync(join(REPO, 'index.html'), 'utf8');
+  const meta = html.match(/<meta\s+http-equiv="Content-Security-Policy"\s+content="([^"]+)"/i);
+  if (!meta) return null;
+  return Object.fromEntries(meta[1].split(';').map((d) => d.trim().split(/\s+/)).filter((d) => d[0]).map(([k, ...v]) => [k, v]));
+}
+// what a strict 'self' policy would block, found in shipped code
+function needsLooserPolicy(code) {
+  return [
+    [/\beval\s*\(|new Function\s*\(/, 'eval'],
+    [/createElement\(\s*['"]script|<script(?![^>]*\bsrc=)/i, 'inline script'],
+    [/\son[a-z]+\s*=\s*["']/, 'inline event handler'],
+    [/(?:src|href)\s*=\s*["']?(?:https?:)?\/\//i, 'remote resource'],
+    [/url\(\s*['"]?(?:https?:)?\/\//i, 'remote CSS resource'],
+    [/@import/, 'CSS @import'],
+  ].filter(([re]) => re.test(code)).map(([, what]) => what);
+}
+test('index.html declares a policy that only runs the game own scripts', () => {
+  const p = pagePolicy();
+  assert(p, 'no Content-Security-Policy meta in index.html');
+  const scripts = p['script-src'] || p['default-src'];
+  assert(scripts?.join(' ') === "'self'", `scripts from ${scripts}`);
+  assert(p['object-src']?.join(' ') === "'none'" && p['base-uri']?.join(' ') === "'none'", 'plugins and <base> must be off');
+  assert(!Object.values(p).flat().some((s) => /^(https?:|\*|'unsafe-eval')/.test(s)), 'no remote origins or eval anywhere');
+});
+test('the policy must come before anything it governs', () => {
+  const html = readFileSync(join(REPO, 'index.html'), 'utf8');
+  const at = html.search(/http-equiv="Content-Security-Policy"/i);
+  assert(at > 0 && at < html.search(/<link|<script/i), 'the meta has to precede every link and script');
+});
+test('nothing the game ships needs what the policy forbids', () => {
+  assert(needsLooserPolicy('x.innerHTML = "<img onerror=\'a()\'>"; eval(s)').length === 2, 'the check itself must catch these');
+  const files = [join(REPO, 'index.html'), join(REPO, 'sw.js')];
+  const walk = (dir) => readdirSync(dir).forEach((f) => (statSync(join(dir, f)).isDirectory() ? walk(join(dir, f)) : /\.(js|css)$/.test(f) && files.push(join(dir, f))));
+  walk(join(REPO, 'src'));
+  const bad = files.flatMap((f) => needsLooserPolicy(readFileSync(f, 'utf8')).map((w) => `${f.slice(REPO.length + 1)}: ${w}`));
+  assert(!bad.length, bad.join(', '));
+});
+
 await Promise.all(pending);
 console.log(`\n${passed} passed, ${failed} failed\n`);
 process.exit(failed ? 1 : 0);
