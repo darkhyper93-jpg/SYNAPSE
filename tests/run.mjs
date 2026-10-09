@@ -9,7 +9,7 @@ storage.use(new MemoryAdapter());
 const { CHALLENGE_TYPES, TYPES_BY_ID, isUnlocked, createChallenge, generateMemoryChallenge, generatePatternChallenge } = await import('../src/engine/challengeGenerator.js');
 const { RNG } = await import('../src/utils/rng.js');
 const { DifficultyManager } = await import('../src/engine/difficultyManager.js');
-const { trialPoints } = await import('../src/engine/scoreSystem.js');
+const { trialRaw, streakMultiplier } = await import('../src/engine/scoreSystem.js');
 const { PlayerProfile } = await import('../src/game/playerProfile.js');
 const { SessionManager } = await import('../src/engine/sessionManager.js');
 const { dailyInfo } = await import('../src/engine/daily.js');
@@ -103,17 +103,17 @@ test('rotated polycube has the same canonical form', () => {
 
 console.log('\nScore system');
 test('wrong answers score 0, even when instant', () => {
-  assert(trialPoints({ correct: false, rt: 50, targetTime: 1000 }, { difficulty: 1 }) === 0);
+  assert(trialRaw({ correct: false, rt: 50, targetTime: 1000 }, { difficulty: 1 }) === 0);
 });
 test('fast correct > slow correct, but speed never dominates', () => {
-  const fast = trialPoints({ correct: true, rt: 200, targetTime: 1000 }, { difficulty: 0.5 });
-  const slow = trialPoints({ correct: true, rt: 3000, targetTime: 1000 }, { difficulty: 0.5 });
+  const fast = trialRaw({ correct: true, rt: 200, targetTime: 1000 }, { difficulty: 0.5 });
+  const slow = trialRaw({ correct: true, rt: 3000, targetTime: 1000 }, { difficulty: 0.5 });
   assert(fast > slow, 'fast should beat slow');
   assert(fast / slow < 1.6, `ratio too large ${fast / slow}`);
 });
 test('harder challenges are worth more', () => {
-  const a = trialPoints({ correct: true, rt: 1000, targetTime: 1000 }, { difficulty: 0.1 });
-  const b = trialPoints({ correct: true, rt: 1000, targetTime: 1000 }, { difficulty: 0.9 });
+  const a = trialRaw({ correct: true, rt: 1000, targetTime: 1000 }, { difficulty: 0.1 });
+  const b = trialRaw({ correct: true, rt: 1000, targetTime: 1000 }, { difficulty: 0.9 });
   assert(b > a);
 });
 
@@ -402,15 +402,18 @@ test('ONE SECOND: the majority shape wins by 2+, counts stay within subitizing r
     if (r.kind === 'count') assert(r.answer <= 4, `count of ${r.answer} at d=${ch.difficulty.toFixed(1)}`);
   }
 });
-test('DECISION can be settled by quick estimation (amounts ≥ 15–25 % apart), with ≥ 300 ms per number to read', () => {
+test('DECISION can be settled by quick estimation (amounts ≥ 12–25 % apart), with ≥ 300 ms per number to read', () => {
+  const total = (c) => c.reduce((a, b) => a + b, 0);
+  const size = (c) => c.reduce((a, b) => a + Math.abs(b), 0); // what an approximate sum's error grows with
   for (const ch of across('decision')) for (const r of ch.rounds) {
     const at = `d=${ch.difficulty.toFixed(1)}`;
     if (r.kind === 'value') {
-      const s = r.cards.map((c) => c.reduce((a, b) => a + b, 0)).sort((a, b) => b - a);
-      assert(s[0] - s[1] >= Math.max(2, 0.1 * Math.abs(s[0])), `best ${s[0]} vs ${s[1]} at ${at}`);
+      const [best, next] = r.cards.slice().sort((a, b) => total(b) - total(a));
+      const need = Math.max(2, 0.12 * Math.max(size(best), size(next)));
+      assert(total(best) - total(next) >= need, `[${best}] = ${total(best)} vs [${next}] = ${total(next)}: lead under 12 % of the numbers added, at ${at}`);
       assert(ch.answerTime('value') / (r.cards.length * r.cards[0].length) >= 300, `${Math.round(ch.answerTime('value') / (r.cards.length * r.cards[0].length))} ms per number at ${at}`);
     }
-    if (r.kind === 'compare') assert(Math.max(r.counts.left, r.counts.right) / Math.min(r.counts.left, r.counts.right) >= 1.15, `${r.counts.left} vs ${r.counts.right} at ${at}`);
+    if (r.kind === 'compare') assert(Math.max(r.counts.left, r.counts.right) / Math.min(r.counts.left, r.counts.right) >= 1.16, `${r.counts.left} vs ${r.counts.right} at ${at}`);
     if (r.kind === 'stream') {
       const c = r.counts.slice().sort((a, b) => (r.ask === 'least' ? a - b : b - a));
       assert(Math.max(c[0], c[1]) / Math.min(c[0], c[1]) >= 1.25, `${r.ask}: ${c[0]} vs ${c[1]} at ${at}`);
@@ -420,35 +423,40 @@ test('DECISION can be settled by quick estimation (amounts ≥ 15–25 % apart),
 
 console.log('\nFair scoring: the format of a challenge does not decide the score');
 // What a flawless player records, re-derived here from the generated content (weights as the challenges record them).
-function flawlessTrials(ch) {
+// speed: reaction time as a share of the target time (1 = on target, 0.3 = very fast, 2 = slow).
+function flawlessTrials(ch, speed = 1) {
   const p = ch.params;
   const tt = ch.meta.targetTime;
-  const one = (w = 1) => ({ correct: true, rt: w >= 0.5 ? tt : null, targetTime: tt, weight: w });
+  const one = (w = 1) => ({ correct: true, rt: tt * speed, targetTime: tt, weight: w, feedback: 'mini' });
+  const held = (w) => ({ correct: true, rt: null, weight: w, feedback: 'none' }); // a correct "do nothing": no reaction time
   switch (ch.type) {
     case 'echo': return ch.rounds.map((r) => one(r.seq && r.seq.length >= 6 ? 1.5 : 1));
     case 'trace': return ch.rounds.flatMap((r) => r.targets.map(() => one()));
-    case 'spark': return p.events.map((e) => one(e.decoy ? 0.3 : 1));
-    case 'focus': return p.items.map((it) => one(it.respond || it.isTarget ? 1 : 0.2));
+    case 'spark': return p.events.map((e) => (e.decoy ? held(0.3) : one()));
+    case 'focus': return p.items.map((it) => (it.respond ? one() : held(it.isTarget ? 1 : 0.2)));
     case 'flex': return p.trials.map(() => one());
-    case 'dual': return [...p.items.map((it) => one(it.kind === 'hit' ? 1 : 0.15)), one(2)];
+    case 'dual': return [...p.items.map((it) => (it.kind === 'hit' ? one() : held(0.15))), one(2)];
     case 'nexus': return ch.rounds.flatMap((r) => r.questions.map(() => one()));
     default: return ch.rounds.map(() => one());
   }
 }
-test('a flawless challenge earns about the same points whatever its format (±15 %)', () => {
-  const totals = {};
-  for (const T of CHALLENGE_TYPES) {
-    let sum = 0;
-    for (let k = 0; k < 20; k++) {
-      const ch = createChallenge(T.meta.id, 0.5, { rng: new RNG(`pts-${T.meta.id}-${k}`) });
-      const sm = new SessionManager({ mode: 'quick', profile: new PlayerProfile() }).startSession();
-      for (const tr of flawlessTrials(ch)) sum += sm.onTrial(tr, ch);
+test('a flawless challenge earns the same points whatever its format (±4 %), at every difficulty and speed', () => {
+  const off = [];
+  for (const d of [0, 0.25, 0.5, 0.75, 1]) for (const speed of [0.3, 1, 2]) {
+    const totals = {};
+    for (const T of CHALLENGE_TYPES) {
+      let sum = 0;
+      for (let k = 0; k < 12; k++) {
+        const ch = createChallenge(T.meta.id, d, { rng: new RNG(`pts-${T.meta.id}-${k}-${d}`) });
+        const sm = new SessionManager({ mode: 'quick', profile: new PlayerProfile() }).startSession();
+        for (const tr of flawlessTrials(ch, speed)) sum += sm.onTrial(tr, ch);
+      }
+      totals[T.meta.id] = sum / 12;
     }
-    totals[T.meta.id] = sum / 20;
+    const vals = Object.values(totals).sort((a, b) => a - b);
+    const median = vals[Math.floor(vals.length / 2)];
+    for (const [k, v] of Object.entries(totals)) if (Math.abs(v / median - 1) > 0.04) off.push(`${k} ${(v / median).toFixed(2)}× (d=${d}, speed ${speed})`);
   }
-  const vals = Object.values(totals).sort((a, b) => a - b);
-  const median = vals[Math.floor(vals.length / 2)];
-  const off = Object.entries(totals).filter(([, v]) => Math.abs(v / median - 1) > 0.15).map(([k, v]) => `${k} ${(v / median).toFixed(2)}×`);
   assert(!off.length, `away from the median: ${off.join(', ')}`);
 });
 test('the score multiplier grows by the same amount per flawless challenge, whatever its format', () => {
@@ -461,6 +469,18 @@ test('the score multiplier grows by the same amount per flawless challenge, what
   }
   const vals = Object.values(growth);
   assert(Math.max(...vals) - Math.min(...vals) < 0.005, JSON.stringify(growth));
+});
+test('k flawless challenges in a row give exactly the multiplier of 3k point units (no rounding drift)', () => {
+  const off = [];
+  for (const d of [0, 0.3, 0.6, 0.9]) for (let k = 0; k < 10; k++) {
+    const sm = new SessionManager({ mode: 'quick', profile: new PlayerProfile() }).startSession();
+    CHALLENGE_TYPES.slice(0, 8).forEach((T, i) => {
+      const ch = createChallenge(T.meta.id, d, { rng: new RNG(`drift-${T.meta.id}-${k}-${d}`) });
+      flawlessTrials(ch).forEach((tr) => sm.onTrial(tr, ch));
+      if (sm.multiplier() !== streakMultiplier(3 * (i + 1))) off.push(`after ${T.meta.id} #${i + 1} (d=${d}): ×${sm.multiplier()}`);
+    });
+  }
+  assert(!off.length, `${off.length} drifted, e.g. ${off.slice(0, 3).join(', ')}`);
 });
 
 test('the web version label matches package.json (Android reads its versionName from there)', async () => {

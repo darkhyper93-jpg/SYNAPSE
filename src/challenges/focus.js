@@ -7,6 +7,9 @@ import { sym, inlineSym } from './common.js';
 import { h, now } from '../utils/dom.js';
 import { t } from '../game/i18n.js';
 
+// A correct rejection weighs little so streams don't inflate accuracy (recorded in run(), counted in pointUnits).
+const W_REJECT = 0.2;
+
 export class FocusChallenge extends Challenge {
   static meta = { id: 'focus', skill: 'attention', targetTime: 650, reactionLike: true };
 
@@ -65,9 +68,9 @@ export class FocusChallenge extends Challenge {
     };
   }
 
-  /** Responses count 1, correct holds 0.2 (a held-back target 1), as recorded in run(). */
+  /** Responses count 1, correct holds W_REJECT (a held-back target 1), as recorded in run(). */
   pointUnits() {
-    return this.params.items.reduce((s, it) => s + (it.respond || it.isTarget ? 1 : 0.2), 0);
+    return this.params.items.reduce((s, it) => s + (it.respond || it.isTarget ? 1 : W_REJECT), 0);
   }
 
   validate() {
@@ -161,7 +164,7 @@ export class FocusChallenge extends Challenge {
           this.recordTrial({ correct: false, rt: null, feedback: 'mini', answerLabel: t('focus.missed') });
         } else {
           // Correct rejection: low weight so streams don't inflate accuracy.
-          this.recordTrial({ correct: true, rt: null, feedback: 'none', weight: it.isTarget ? 1 : 0.2 });
+          this.recordTrial({ correct: true, rt: null, feedback: 'none', weight: it.isTarget ? 1 : W_REJECT });
         }
       }
       current = null;

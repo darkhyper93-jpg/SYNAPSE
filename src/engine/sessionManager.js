@@ -6,7 +6,7 @@ import { SKILL_IDS, CORE_SKILLS } from '../data/skills.js';
 import { RNG } from '../utils/rng.js';
 import { clamp, mean } from '../utils/math.js';
 import { DifficultyManager } from './difficultyManager.js';
-import { trialPoints, challengeBonus, streakMultiplier, POINT_UNITS } from './scoreSystem.js';
+import { trialRaw, speedFactor, challengeBonus, streakMultiplier, POINT_UNITS } from './scoreSystem.js';
 import { CHALLENGE_TYPES, TYPES_BY_ID, typesForSkill, isUnlocked, createChallenge } from './challengeGenerator.js';
 import { dailyInfo } from './daily.js';
 
@@ -221,23 +221,35 @@ export class SessionManager {
   }
 
   // ---------- scoring ----------
-  /** Points per unit of trial weight for this challenge: every format shares the same budget. */
-  pointScale(challenge) {
-    const units = challenge?.pointUnits?.();
-    return units > 0 ? POINT_UNITS / units : 1;
+  /**
+   * Scoring state of the challenge being played, set up on its first trial: its share of the point
+   * budget (every format shares the same one), the speed of its answers so far, and the rounding
+   * carried from trial to trial.
+   */
+  scoring(challenge) {
+    if (this.scored?.challenge !== challenge) {
+      const units = challenge?.pointUnits?.();
+      this.scored = { challenge, scale: units > 0 ? POINT_UNITS / units : 1, speedSum: 0, speedN: 0, carry: 0 };
+    }
+    return this.scored;
+  }
+
+  /** The run in point units, without the float dust of adding many small shares (k flawless challenges = 3k). */
+  heatNow() {
+    return Math.round(this.heat * 1e6) / 1e6;
   }
 
   /** Score multiplier from the current run: it grows by the same amount for any flawless challenge. */
   multiplier() {
-    return streakMultiplier(this.heat);
+    return streakMultiplier(this.heatNow());
   }
 
   /** Called by the challenge for every trial. Returns awarded points. */
   onTrial(trial, challenge) {
     const lowWeight = trial.weight < 0.5;
-    const scale = this.pointScale(challenge);
+    const sc = this.scoring(challenge);
     if (trial.correct) {
-      this.heat += (trial.weight ?? 1) * scale;
+      this.heat += (trial.weight ?? 1) * sc.scale;
       if (!lowWeight) {
         this.streak += 1;
         this.errorRun = 0;
@@ -252,7 +264,23 @@ export class SessionManager {
       }
     }
     this.bestStreak = Math.max(this.bestStreak, this.streak);
-    const pts = trialPoints(trial, { difficulty: challenge.difficulty, streak: this.heat, modeMult: this.mode.scoreMult, scale });
+    // A correct "do nothing" (a lure left alone) has no reaction time: it is paid at the speed of this
+    // challenge's answers, so a fast or slow player earns the same share in every format.
+    let speed = 1;
+    if (trial.correct && trial.rt != null && trial.targetTime) {
+      speed = speedFactor(trial.rt, trial.targetTime);
+      sc.speedSum += speed;
+      sc.speedN += 1;
+    } else if (sc.speedN) speed = sc.speedSum / sc.speedN;
+    const raw = trialRaw(trial, { difficulty: challenge.difficulty, streak: this.heatNow(), modeMult: this.mode.scoreMult, scale: sc.scale, speed });
+    // Points come in steps of 5. The rounding is carried to the next trial, so small shares (a lure
+    // left alone is worth ~8) add up to what they are worth instead of each being rounded up or down.
+    let pts = 0;
+    if (raw > 0) {
+      pts = Math.round((raw + sc.carry) / 5) * 5;
+      if (trial.feedback !== 'none') pts = Math.max(5, pts); // a correct answer on screen never reads "+0"
+      sc.carry += raw - pts;
+    }
     this.score += pts;
     return pts;
   }

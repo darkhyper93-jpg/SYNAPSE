@@ -7,6 +7,9 @@ import { board, clickBoard, multiClickBoard, drainBar, noiseMask, sym, inlineSym
 import { now } from '../utils/dom.js';
 import { t } from '../game/i18n.js';
 
+// A long sequence is worth half a question more (recorded in play_order, counted in pointUnits).
+const seqWeight = (len) => (len >= 6 ? 1.5 : 1);
+
 const GRIDS = [
   [2, 3],
   [3, 3],
@@ -77,7 +80,7 @@ export class EchoChallenge extends Challenge {
     }
 
     const lowD = d < 0.6;
-    const items = this.scene(rows, cols, count, { uniqueShapes: lowD && count <= 8 });
+    const items = this.scene(rows, cols, count, { uniqueShapes: lowD });
 
     if (variant === 'where' || variant === 'color') {
       // Target needs a unique shape (low difficulty) or unique shape+colour (high difficulty).
@@ -138,9 +141,9 @@ export class EchoChallenge extends Challenge {
     return { ...base, items, after, changedCell, kind };
   }
 
-  /** A long sequence counts 1.5 (as recorded in play_order). */
+  /** One question per round, a long sequence weighing more. */
   pointUnits() {
-    return this.rounds.reduce((s, r) => s + (r.seq && r.seq.length >= 6 ? 1.5 : 1), 0);
+    return this.rounds.reduce((s, r) => s + (r.seq ? seqWeight(r.seq.length) : 1), 0);
   }
 
   validate() {
@@ -281,7 +284,7 @@ export class EchoChallenge extends Challenge {
             rt: now() - t0,
             targetTime: r.seq.length * 800,
             answerLabel: t('ui.shownOnBoard'),
-            weight: 1 + (r.seq.length >= 6 ? 0.5 : 0),
+            weight: seqWeight(r.seq.length),
             origin: btn,
           });
           resolve();

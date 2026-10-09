@@ -5,6 +5,9 @@ import { h, now } from '../utils/dom.js';
 import { t } from '../game/i18n.js';
 import { shapeSVG } from '../data/visuals.js';
 
+// Weight of a decoy left alone (recorded in run(), counted in pointUnits).
+const W_DECOY = 0.3;
+
 const KEYS3 = ['q', 'w', 'e', 'a', 's', 'd', 'z', 'x', 'c'];
 const KEYS4 = ['1', '2', '3', '4', 'q', 'w', 'e', 'r', 'a', 's', 'd', 'f', 'z', 'x', 'c', 'v'];
 
@@ -33,9 +36,9 @@ export class SparkChallenge extends Challenge {
     this.params = { size, window, events };
   }
 
-  /** Every spark is a trial; a decoy left alone counts 0.3. */
+  /** Every spark is a trial; a decoy left alone counts W_DECOY. */
   pointUnits() {
-    return this.params.events.reduce((s, e) => s + (e.decoy ? 0.3 : 1), 0);
+    return this.params.events.reduce((s, e) => s + (e.decoy ? W_DECOY : 1), 0);
   }
 
   validate() {
@@ -125,7 +128,7 @@ export class SparkChallenge extends Challenge {
       resolveEvent = null;
       if (!active.resolved) {
         active.resolved = true;
-        if (ev.decoy) this.recordTrial({ correct: true, rt: null, feedback: 'none', weight: 0.3 });
+        if (ev.decoy) this.recordTrial({ correct: true, rt: null, feedback: 'none', weight: W_DECOY });
         else {
           nodes[ev.cell].classList.add('is-miss');
           this.recordTrial({ correct: false, rt: null, feedback: 'mini', answerLabel: t('spark.missed') });

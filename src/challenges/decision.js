@@ -90,29 +90,32 @@ export class DecisionChallenge extends Challenge {
     const rng = this.rng;
     const n = d < 0.5 ? 3 : 4;
     const terms = d < 0.3 ? 2 : 3;
-    // the best card leads the next by 30 % of its total at first, 12 % at the top: rounding each
-    // number to its tens is enough, exact sums never are needed
+    // An approximate sum errs in proportion to the numbers added, not to their total (−11+9+18 is
+    // small, its numbers are not), so the best card leads the next by a share of the size of the
+    // numbers on both: 30 % at first, 12 % at the top. A quick estimate settles it; a near-tie only
+    // exact mixed-sign addition could split never comes up.
     const lead = byDiffF(d, 0.3, 0.12);
-    const gapFor = (cards) => Math.max(2, Math.ceil(lead * Math.abs(Math.max(...cards.map(sum)))));
     let cards;
     let guard = 0;
     do {
       cards = Array.from({ length: n }, () => Array.from({ length: terms }, () => rng.int(1, byDiff(d, 9, 19)) * (d >= 0.7 && rng.chance(0.25) ? -1 : 1)));
       guard++;
-    } while (!this.clearMax(cards, gapFor(cards)) && guard < 400);
+    } while (!this.clearMax(cards, lead) && guard < 400);
     const sums = cards.map(sum);
-    return { kind: 'value', cards, answer: sums.indexOf(Math.max(...sums)), gap: gapFor(cards) };
+    return { kind: 'value', cards, answer: sums.indexOf(Math.max(...sums)), lead };
   }
 
-  clearMax(cards, gap) {
-    const s = cards.map(sum).sort((a, b) => b - a);
-    return s[0] - s[1] >= gap;
+  /** The best card's total beats the next by ≥ lead × the size of their numbers (and by 2 at least). */
+  clearMax(cards, lead) {
+    const size = (c) => sum(c.map(Math.abs));
+    const [best, next] = cards.slice().sort((a, b) => sum(b) - sum(a));
+    return sum(best) - sum(next) >= Math.max(2, lead * Math.max(size(best), size(next)));
   }
 
   validate() {
     return this.rounds.every((r) => {
       if (r.kind === 'stream') return this.uniqueExtreme(r.counts, r.ask, r.margin) && r.seq.length === sum(r.counts);
-      if (r.kind === 'value') return this.clearMax(r.cards, r.gap);
+      if (r.kind === 'value') return this.clearMax(r.cards, r.lead);
       if (r.kind === 'compare') {
         const l = r.left.filter((x) => x.shape === r.target).length;
         const rr = r.right.filter((x) => x.shape === r.target).length;

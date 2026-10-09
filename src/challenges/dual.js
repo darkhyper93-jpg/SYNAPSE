@@ -7,6 +7,10 @@ import { sym, inlineSym } from './common.js';
 import { h, now } from '../utils/dom.js';
 import { t } from '../game/i18n.js';
 
+// Trial weights (recorded in run(), counted in pointUnits): a hit 1, a non-hit left alone, the final count.
+const W_IGNORED = 0.15;
+const W_COUNT = 2;
+
 export class DualChallenge extends Challenge {
   static meta = {
     id: 'dual',
@@ -49,9 +53,9 @@ export class DualChallenge extends Challenge {
     this.params = { countItem, hitItem, items, show, gap, countN, options: [start, start + 1, start + 2, start + 3] };
   }
 
-  /** Hits count 1, items correctly ignored 0.15, the final count question 2. */
+  /** Hits count 1, items correctly ignored W_IGNORED, the final count question W_COUNT. */
   pointUnits() {
-    return this.params.items.reduce((s, it) => s + (it.kind === 'hit' ? 1 : 0.15), 0) + 2;
+    return this.params.items.reduce((s, it) => s + (it.kind === 'hit' ? 1 : W_IGNORED), 0) + W_COUNT;
   }
 
   validate() {
@@ -102,7 +106,7 @@ export class DualChallenge extends Challenge {
         if (it.kind === 'hit') {
           cells[it.cell].classList.add('is-miss');
           this.recordTrial({ correct: false, rt: null, feedback: 'mini', answerLabel: t('focus.missed') });
-        } else this.recordTrial({ correct: true, rt: null, feedback: 'none', weight: 0.15 });
+        } else this.recordTrial({ correct: true, rt: null, feedback: 'none', weight: W_IGNORED });
       }
       current = null;
       await this.wait(60);
@@ -117,7 +121,7 @@ export class DualChallenge extends Challenge {
       options: p.options.map((v) => ({ value: v, label: String(v), html: `<span class="big-num">${v}</span>` })),
       correctValue: p.countN,
       targetTime: 3500,
-      trial: { weight: 2, explanation: t('dual.answer', { n: p.countN }) },
+      trial: { weight: W_COUNT, explanation: t('dual.answer', { n: p.countN }) },
     });
     this.setProgress(1, 1);
     await this.wait(900);

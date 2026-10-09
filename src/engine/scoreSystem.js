@@ -23,11 +23,14 @@ export function streakMultiplier(streak) {
   return 1 + Math.min(streak, 25) * 0.02;
 }
 
-/** scale: the challenge's share of POINT_UNITS per unit of weight (1 for a three-question challenge). */
-export function trialPoints({ correct, rt, targetTime, weight = 1 }, { difficulty, streak = 0, modeMult = 1, scale = 1 }) {
+/**
+ * Unrounded points of one trial (SessionManager rounds them to steps of 5, carrying the remainder).
+ * scale: the challenge's share of POINT_UNITS per unit of weight (1 for a three-question challenge).
+ * speed: the speed factor to use instead of the trial's own (a correct "do nothing" has no reaction time).
+ */
+export function trialRaw({ correct, rt, targetTime, weight = 1 }, { difficulty, streak = 0, modeMult = 1, scale = 1, speed }) {
   if (!correct) return 0;
-  const raw = BASE_POINTS * difficultyMultiplier(difficulty) * speedFactor(rt, targetTime) * streakMultiplier(streak) * weight * scale * modeMult;
-  return Math.max(5, Math.round(raw / 5) * 5);
+  return BASE_POINTS * difficultyMultiplier(difficulty) * (speed ?? speedFactor(rt, targetTime)) * streakMultiplier(streak) * weight * scale * modeMult;
 }
 
 /** Consistency bonus at the end of a challenge. */
