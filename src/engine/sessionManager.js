@@ -96,8 +96,9 @@ export class SessionManager {
    * where they stopped, so it never continues:
    * - nothing missed yet: it is thrown away with everything it earned and a fresh one takes the slot;
    * - a miss already made: it ends there. What was played stands (points, the miss, the streak), the
-   *   slot is used and there is no end bonus, so stepping away can never undo a mistake.
-   * Either way the time already spent still counts. seen: the player already saw its content (a Daily
+   *   slot is used and there is no end bonus, so stepping away can never undo a mistake;
+   * - every answer already in (the pause landed on the last feedback): it counts in full, bonus included.
+   * In every case the time already spent still counts. seen: the player already saw its content (a Daily
    * then deals a different one for this slot).
    * @returns the summary of the challenge that ended, or null if it was thrown away
    */
@@ -105,13 +106,19 @@ export class SessionManager {
     if (!this.current) return null;
     const { challenge } = this.current;
     const trials = challenge.trials || [];
+    const played = trials.reduce((s, tr) => s + Math.max(0, tr.weight), 0);
+    const rest = Math.max(0, challenge.pointUnits() - played);
+    if (rest < 1e-9) {
+      // every answer was already in (the pause landed on the last feedback): it simply counts
+      const result = challenge.getResult();
+      result.duration = Math.max(0, elapsedMs);
+      return this.completeChallenge(challenge, result);
+    }
     if (trials.some((tr) => !tr.correct && !tr.forgiving)) {
       // Rated as if the part not played had gone at the target accuracy: an interruption neither
       // drags the rating down nor lifts it.
       const result = challenge.getResult();
-      const played = trials.reduce((s, tr) => s + Math.max(0, tr.weight), 0);
       const won = trials.reduce((s, tr) => s + (tr.correct ? Math.max(0, tr.weight) : 0), 0);
-      const rest = Math.max(0, challenge.pointUnits() - played);
       result.accuracy = (won + TARGET_ACCURACY * rest) / (played + rest);
       result.duration = Math.max(0, elapsedMs);
       return this.completeChallenge(challenge, result, { early: true });

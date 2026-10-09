@@ -428,7 +428,8 @@ export function playScreen({ mode = 'quick', typeId, difficulty } = {}) {
     session.pauseClock();
     let closed = null;
     if (active) {
-      // the interrupted challenge never continues: thrown away, or ended where it was after a miss
+      // the interrupted challenge never continues: thrown away, ended where it was after a miss, or
+      // counted in full if every answer was already in
       const elapsed = challengeStart ? now() - challengeStart : 0;
       closed = session.interruptCurrent({ elapsedMs: elapsed, seen: elapsed > 0 });
       active.challenge.destroy();
@@ -450,7 +451,7 @@ export function playScreen({ mode = 'quick', typeId, difficulty } = {}) {
       'div.pause-card',
       { role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'pause-title' },
       h('h2#pause-title', t('pause.title')),
-      h('p', t(closed ? 'pause.bodyClosed' : 'pause.body')),
+      h('p', t(!closed ? 'pause.body' : closed.early ? 'pause.bodyClosed' : 'pause.bodyDone')),
       h('button.btn.btn-primary', { type: 'button', onclick: resume }, t('pause.resume')),
       canEnd ? h('button.btn.btn-ghost', { type: 'button', onclick: () => endSession() }, t('pause.end')) : null,
       h('button.btn.btn-ghost.btn-danger-text', { type: 'button', onclick: () => quit() }, t('pause.quit')),

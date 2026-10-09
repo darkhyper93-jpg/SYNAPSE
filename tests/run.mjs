@@ -268,6 +268,33 @@ test('stepping away with no miss yet still costs nothing but the time', () => {
   const closed = sm.interruptCurrent({ elapsedMs: 3000, seen: true });
   assert(closed === null && sm.index === 0 && sm.score === 0 && sm.streak === 0, 'thrown away, slot kept');
 });
+// every answer given (the pause lands on the last feedback): weights summing to its pointUnits()
+function allAnswered(plan, missAt = -1) {
+  const units = plan.challenge.pointUnits();
+  const k = Math.ceil(units - 1e-9);
+  return Array.from({ length: k }, (_, i) => ({ ...(i === missAt ? wrong : right), weight: units / k }));
+}
+test('stepping away once every answer is in counts the whole challenge, end bonus included', () => {
+  const sm = new SessionManager({ mode: 'quick', profile: freshProfile(), seed: 13 }).startSession();
+  const plan = sm.next();
+  const trials = allAnswered(plan, 0);
+  assert(trials.length >= 3, `needs a few answers (${trials.length})`);
+  playInto(sm, plan, trials);
+  const want = challengeBonus(plan.challenge.getResult(), sm.mode.scoreMult).bonus;
+  const closed = sm.interruptCurrent({ elapsedMs: 8000, seen: true });
+  assert(closed && !closed.early, 'nothing was left to play: not an early close');
+  assert(want > 0 && closed.bonus === want, `bonus ${closed?.bonus}, want ${want}`);
+  assert(Math.abs(closed.accuracy - (trials.length - 1) / trials.length) < 1e-9, `accuracy ${closed.accuracy}`);
+});
+test('a flawless challenge is kept when the pause lands on its last feedback', () => {
+  const sm = new SessionManager({ mode: 'daily', profile: freshProfile() }).startSession();
+  const plan = sm.next();
+  playInto(sm, plan, allAnswered(plan));
+  const score = sm.score;
+  const closed = sm.interruptCurrent({ elapsedMs: 8000, seen: true });
+  assert(closed && closed.perfect, 'it must count, not be thrown away');
+  assert(sm.score >= score && score > 0 && sm.index === 1, `score ${sm.score}/${score}, index ${sm.index}`);
+});
 test('quit without saving leaves the profile exactly as before', () => {
   const p = freshProfile();
   p.reset();

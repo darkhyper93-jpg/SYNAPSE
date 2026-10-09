@@ -58,7 +58,7 @@ const en = {
   'play.complete': 'COMPLETE', 'play.perfect': 'Perfect +{bonus}', 'play.bonus': 'Consistency +{bonus}',
   'play.next': 'Next', 'play.results': 'Results', 'play.eased': 'Taking it a notch easier — next one is yours.',
   'play.levelUp': '{skill} → {level}', 'play.unlocked': 'New challenge unlocked: {name}',
-  'pause.title': 'PAUSED', 'pause.body': 'The current challenge is discarded. Resume to get a fresh one.', 'pause.bodyClosed': 'You had already missed one, so this challenge ends here with what you played. Resume for the next one.',
+  'pause.title': 'PAUSED', 'pause.body': 'The current challenge is discarded. Resume to get a fresh one.', 'pause.bodyClosed': 'You had already missed one, so this challenge ends here with what you played. Resume for the next one.', 'pause.bodyDone': 'You had already answered everything, so this challenge counts in full. Resume for the next one.',
   'pause.resume': 'Resume', 'pause.end': 'End session & see results', 'pause.quit': 'Quit without saving',
 
   // feedback
@@ -260,7 +260,7 @@ const es = {
   'play.complete': 'COMPLETADO', 'play.perfect': 'Perfecto +{bonus}', 'play.bonus': 'Constancia +{bonus}',
   'play.next': 'Siguiente', 'play.results': 'Resultados', 'play.eased': 'Bajamos un punto la intensidad — el próximo es tuyo.',
   'play.levelUp': '{skill} → {level}', 'play.unlocked': 'Nuevo desafío desbloqueado: {name}',
-  'pause.title': 'PAUSA', 'pause.body': 'El desafío actual se descarta. Al reanudar recibirás uno nuevo.', 'pause.bodyClosed': 'Ya habías fallado una, así que este desafío termina aquí con lo que jugaste. Al reanudar seguirás con el próximo.',
+  'pause.title': 'PAUSA', 'pause.body': 'El desafío actual se descarta. Al reanudar recibirás uno nuevo.', 'pause.bodyClosed': 'Ya habías fallado una, así que este desafío termina aquí con lo que jugaste. Al reanudar seguirás con el próximo.', 'pause.bodyDone': 'Ya habías respondido todo, así que este desafío cuenta completo. Al reanudar seguirás con el próximo.',
   'pause.resume': 'Reanudar', 'pause.end': 'Terminar y ver resultados', 'pause.quit': 'Salir sin guardar',
 
   'fb.correct': 'Correcto', 'fb.wrong': 'Incorrecto', 'fb.timeout': 'Tiempo agotado', 'fb.answer': 'Respuesta correcta: {a}',
