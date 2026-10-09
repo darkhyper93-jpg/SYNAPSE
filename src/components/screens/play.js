@@ -6,7 +6,6 @@ import { profile } from '../../game/playerProfile.js';
 import { settings } from '../../game/settings.js';
 import { storage } from '../../game/storage.js';
 import { SessionManager } from '../../engine/sessionManager.js';
-import { streakMultiplier } from '../../engine/scoreSystem.js';
 import { SKILLS, masteryFor } from '../../data/skills.js';
 import { sfx } from '../../game/audio.js';
 import { haptic } from '../../game/haptics.js';
@@ -136,8 +135,8 @@ export function playScreen({ mode = 'quick', typeId, difficulty } = {}) {
     streakEl.textContent = String(st);
     hud.classList.toggle('is-hot', st >= 3);
     hud.style.setProperty('--heat', Math.min(1, st / 20).toFixed(2));
-    const m = streakMultiplier(st);
-    multEl.textContent = st >= 3 ? `×${m.toFixed(2)}` : '';
+    const m = session.multiplier();
+    multEl.textContent = m >= 1.06 ? `×${m.toFixed(2)}` : '';
     bestEl.textContent = `${t('hud.best')} ${Math.max(profile.state.stats.bestStreak, session.bestStreak)}`;
     replay(streakEl, 'bump');
   };

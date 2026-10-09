@@ -97,6 +97,11 @@ export class TraceChallenge extends Challenge {
     return true;
   }
 
+  /** One trial per target picked. */
+  pointUnits() {
+    return this.rounds.reduce((s, r) => s + r.targets.length, 0);
+  }
+
   validate() {
     // a target that travels fused with a distractor for over ~0.3 s can't be told apart when they split
     return this.rounds.every((r) => r.final.length === r.n && this.separated(r.final) && r.fused < MAX_FUSED_FRAMES);

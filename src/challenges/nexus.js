@@ -27,7 +27,7 @@ export class NexusChallenge extends Challenge {
     const rng = this.rng;
     const rows = 3;
     const cols = d < 0.6 ? 3 : 4;
-    const n = Math.min(8, byDiff(d, 6, 8));
+    const n = byDiff(d, 4, 6); // symbols to bind (shape + colour + place): working memory holds ~4–5
     const shapes = rng.sample(BASIC_SHAPES, n);
     const colors = pickColors(rng, d < 0.5 ? 3 : 4, Math.min(d, 0.6));
     const cells = rng.sample([...Array(rows * cols).keys()], n);
@@ -39,7 +39,8 @@ export class NexusChallenge extends Challenge {
       const q = this[`q_${k}`](items, rows, cols, colors);
       if (q) questions.push(q);
     }
-    return { rows, cols, items, questions, exposure: byDiff(d, 3400, 1900), limit: byDiff(d, 7000, 3800) };
+    // time to look grows with the number of symbols (≥ 450 ms each even at the top level)
+    return { rows, cols, items, questions, exposure: byDiff(d, 2600, 1500) + n * byDiff(d, 300, 250), limit: byDiff(d, 7000, 3800) };
   }
 
   q_neighbor(items, rows, cols, colors) {
@@ -81,6 +82,11 @@ export class NexusChallenge extends Challenge {
         if (axis === 'above' && a.r !== b.r) return { kind: 'relation', axis, a, b, answer: a.r < b.r ? 'a' : 'b' };
       }
     return null;
+  }
+
+  /** One trial per question. */
+  pointUnits() {
+    return this.rounds.reduce((s, r) => s + r.questions.length, 0);
   }
 
   validate() {

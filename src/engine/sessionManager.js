@@ -6,7 +6,7 @@ import { SKILL_IDS, CORE_SKILLS } from '../data/skills.js';
 import { RNG } from '../utils/rng.js';
 import { clamp, mean } from '../utils/math.js';
 import { DifficultyManager } from './difficultyManager.js';
-import { trialPoints, challengeBonus } from './scoreSystem.js';
+import { trialPoints, challengeBonus, streakMultiplier, POINT_UNITS } from './scoreSystem.js';
 import { CHALLENGE_TYPES, TYPES_BY_ID, typesForSkill, isUnlocked, createChallenge } from './challengeGenerator.js';
 import { dailyInfo } from './daily.js';
 
@@ -57,7 +57,8 @@ export class SessionManager {
     // "Quit without saving" puts the profile back exactly as it was
     this.profileBefore = JSON.stringify(this.profile.state);
     this.score = 0;
-    this.streak = 0;
+    this.streak = 0; // correct answers in a row (what the HUD and "best streak" show)
+    this.heat = 0; // the same run measured in point units: drives the score multiplier
     this.bestStreak = 0;
     this.errorRun = 0;
     this.history = []; // completed challenge summaries
@@ -127,6 +128,7 @@ export class SessionManager {
     this.slotState = {
       score: this.score,
       streak: this.streak,
+      heat: this.heat,
       bestStreak: this.bestStreak,
       errorRun: this.errorRun,
       frustrated: this.frustrated,
@@ -219,16 +221,30 @@ export class SessionManager {
   }
 
   // ---------- scoring ----------
+  /** Points per unit of trial weight for this challenge: every format shares the same budget. */
+  pointScale(challenge) {
+    const units = challenge?.pointUnits?.();
+    return units > 0 ? POINT_UNITS / units : 1;
+  }
+
+  /** Score multiplier from the current run: it grows by the same amount for any flawless challenge. */
+  multiplier() {
+    return streakMultiplier(this.heat);
+  }
+
   /** Called by the challenge for every trial. Returns awarded points. */
   onTrial(trial, challenge) {
     const lowWeight = trial.weight < 0.5;
+    const scale = this.pointScale(challenge);
     if (trial.correct) {
+      this.heat += (trial.weight ?? 1) * scale;
       if (!lowWeight) {
         this.streak += 1;
         this.errorRun = 0;
       }
     } else if (!trial.forgiving) {
       this.streak = 0;
+      this.heat = 0;
       if (!lowWeight) this.errorRun += 1;
       if (this.errorRun >= 3) {
         this.frustrated = true;
@@ -236,7 +252,7 @@ export class SessionManager {
       }
     }
     this.bestStreak = Math.max(this.bestStreak, this.streak);
-    const pts = trialPoints(trial, { difficulty: challenge.difficulty, streak: this.streak, modeMult: this.mode.scoreMult });
+    const pts = trialPoints(trial, { difficulty: challenge.difficulty, streak: this.heat, modeMult: this.mode.scoreMult, scale });
     this.score += pts;
     return pts;
   }

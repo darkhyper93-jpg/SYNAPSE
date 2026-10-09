@@ -48,6 +48,11 @@ export class FlexChallenge extends Challenge {
     this.params = { colors, shapes, trials, window: byDiff(d, 2300, 1100), cueOnly, legend: d < 0.5 };
   }
 
+  /** One trial per card. */
+  pointUnits() {
+    return this.params.trials.length;
+  }
+
   validate() {
     const { trials } = this.params;
     // At least one switch and both sides used.

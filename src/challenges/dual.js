@@ -49,6 +49,11 @@ export class DualChallenge extends Challenge {
     this.params = { countItem, hitItem, items, show, gap, countN, options: [start, start + 1, start + 2, start + 3] };
   }
 
+  /** Hits count 1, items correctly ignored 0.15, the final count question 2. */
+  pointUnits() {
+    return this.params.items.reduce((s, it) => s + (it.kind === 'hit' ? 1 : 0.15), 0) + 2;
+  }
+
   validate() {
     const { items, countN, options } = this.params;
     const hits = items.filter((i) => i.kind === 'hit').length;

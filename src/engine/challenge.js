@@ -53,6 +53,15 @@ export class Challenge {
     return true;
   }
 
+  /**
+   * Total weight of the trials a flawless run records (one per round by default). Scoring divides the
+   * challenge's point budget by it, so every format is worth the same; challenges made of streams
+   * of quick events override it.
+   */
+  pointUnits() {
+    return this.rounds?.length || 1;
+  }
+
   async start(stage, hooks = {}) {
     this.stage = stage;
     this.hooks = hooks;

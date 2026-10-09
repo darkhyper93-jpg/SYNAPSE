@@ -68,7 +68,8 @@ export class OneSecondChallenge extends Challenge {
       // "Items" are the symbols: a digit never wears the asked colour, so there is one answer.
       items.forEach((x) => x.digit && x.color === color && (x.color = other()));
       // Keep the answer small enough to subitize/estimate (and sometimes none at all).
-      const want = rng.chance(0.1) ? 0 : rng.int(1, byDiff(d, 3, 5));
+      // at most 4: what a glance of 250 ms can count (subitizing); more would be a guess
+      const want = rng.chance(0.1) ? 0 : rng.int(1, byDiff(d, 3, 4));
       let have = items.filter((x) => x.color === color);
       if (!have.length && want) {
         const x = rng.pick(items.filter((i) => i.shape));
@@ -87,7 +88,7 @@ export class OneSecondChallenge extends Challenge {
       Object.assign(round, { answer, options: rng.shuffle([answer, ...absent]) });
     } else {
       // majority shape: force a clear winner
-      const margin = d < 0.7 ? 2 : 1;
+      const margin = 2; // a one-symbol lead among up to 7 shapes can't be seen in a flash
       const symItems = items.filter((x) => x.shape);
       const winner = rng.pick(shapes);
       const counts = () => {

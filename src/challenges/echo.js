@@ -1,7 +1,7 @@
 // ECHO — visual & working memory.
 // Variants: where (position), what (symbol at position), color, order (sequence), change (scene diff).
 import { Challenge } from '../engine/challenge.js';
-import { byDiff, stepDiff, clamp } from '../utils/math.js';
+import { byDiff, byDiffF, stepDiff, clamp } from '../utils/math.js';
 import { pickShapes, pickColors, BASIC_SHAPES, SHAPES, COLORS, DISTINCT_COLORS } from '../data/visuals.js';
 import { board, clickBoard, multiClickBoard, drainBar, noiseMask, sym, inlineSym, symbolOption, colorOption } from './common.js';
 import { now } from '../utils/dom.js';
@@ -62,14 +62,16 @@ export class EchoChallenge extends Challenge {
     const rng = this.rng;
     const [rows, cols] = stepDiff(d, GRIDS);
     const cellsN = rows * cols;
-    const count = clamp(Math.round(cellsN * (0.4 + 0.3 * d)), 3, Math.min(14, cellsN - 1));
+    // Visual working memory holds ~4 symbols (the best players ~5): from 3 to 6, so the top level is
+    // within reach of the best and harder levels come from shorter looks, longer waits and look-alikes.
+    const count = clamp(Math.round(byDiffF(d, 3, 6)), 3, cellsN - 1);
     const exposure = byDiff(d, 2400, 900) + count * byDiff(d, 200, 70);
     const retention = byDiff(d, 350, 1500);
     const mask = d >= 0.5;
     const base = { variant, rows, cols, exposure, retention, mask };
 
     if (variant === 'order') {
-      const len = clamp(byDiff(d, 3, 8), 3, cellsN - 1);
+      const len = clamp(byDiff(d, 3, 7), 3, cellsN - 1); // spatial span: ~5–6 typical, 7 for the best
       const seq = rng.sample([...Array(cellsN).keys()], len);
       return { ...base, seq, step: byDiff(d, 720, 360) };
     }
@@ -134,6 +136,11 @@ export class EchoChallenge extends Challenge {
       }
     }
     return { ...base, items, after, changedCell, kind };
+  }
+
+  /** A long sequence counts 1.5 (as recorded in play_order). */
+  pointUnits() {
+    return this.rounds.reduce((s, r) => s + (r.seq && r.seq.length >= 6 ? 1.5 : 1), 0);
   }
 
   validate() {

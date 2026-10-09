@@ -65,6 +65,11 @@ export class FocusChallenge extends Challenge {
     };
   }
 
+  /** Responses count 1, correct holds 0.2 (a held-back target 1), as recorded in run(). */
+  pointUnits() {
+    return this.params.items.reduce((s, it) => s + (it.respond || it.isTarget ? 1 : 0.2), 0);
+  }
+
   validate() {
     const { items, exception } = this.params;
     const responds = items.filter((i) => i.respond).length;

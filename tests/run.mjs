@@ -377,6 +377,92 @@ test('dynamic keys: every skill, challenge, colour, shape, mirror op', async () 
   assert(!missing.length, missing.join(', '));
 });
 
+console.log('\nFair difficulty: every level stays within human limits');
+// Every difficulty from 0 to 1, a few seeds each: d = 1 must be reachable by the best players, never luck.
+const across = (id, seeds = 25) => {
+  const out = [];
+  for (let d = 0; d <= 1.0001; d += 0.1) for (let s = 0; s < seeds; s++) out.push(createChallenge(id, d, { rng: new RNG(`fair-${id}-${s}-${d.toFixed(1)}`) }));
+  return out;
+};
+test('ECHO never asks to hold more than 6 symbols or a 7-step sequence (working memory holds ~4, the best ~5)', () => {
+  for (const ch of across('echo')) for (const r of ch.rounds) {
+    if (r.items) assert(r.items.length <= 6, `${r.items.length} symbols at d=${ch.difficulty.toFixed(1)}`);
+    if (r.seq) assert(r.seq.length <= 7, `a ${r.seq.length}-step sequence at d=${ch.difficulty.toFixed(1)}`);
+  }
+});
+test('NEXUS shows at most 6 symbols, with at least 450 ms to look at each', () => {
+  for (const ch of across('nexus')) for (const r of ch.rounds) {
+    assert(r.items.length <= 6, `${r.items.length} symbols at d=${ch.difficulty.toFixed(1)}`);
+    assert(r.exposure / r.items.length >= 450, `${Math.round(r.exposure / r.items.length)} ms per symbol at d=${ch.difficulty.toFixed(1)}`);
+  }
+});
+test('ONE SECOND: the majority shape wins by 2+, counts stay within subitizing range (≤ 4)', () => {
+  for (const ch of across('onesecond')) for (const r of ch.rounds) {
+    if (r.kind === 'majority') assert(r.margin >= 2, `margin ${r.margin} at d=${ch.difficulty.toFixed(1)}`);
+    if (r.kind === 'count') assert(r.answer <= 4, `count of ${r.answer} at d=${ch.difficulty.toFixed(1)}`);
+  }
+});
+test('DECISION can be settled by quick estimation (amounts ≥ 15–25 % apart), with ≥ 300 ms per number to read', () => {
+  for (const ch of across('decision')) for (const r of ch.rounds) {
+    const at = `d=${ch.difficulty.toFixed(1)}`;
+    if (r.kind === 'value') {
+      const s = r.cards.map((c) => c.reduce((a, b) => a + b, 0)).sort((a, b) => b - a);
+      assert(s[0] - s[1] >= Math.max(2, 0.1 * Math.abs(s[0])), `best ${s[0]} vs ${s[1]} at ${at}`);
+      assert(ch.answerTime('value') / (r.cards.length * r.cards[0].length) >= 300, `${Math.round(ch.answerTime('value') / (r.cards.length * r.cards[0].length))} ms per number at ${at}`);
+    }
+    if (r.kind === 'compare') assert(Math.max(r.counts.left, r.counts.right) / Math.min(r.counts.left, r.counts.right) >= 1.15, `${r.counts.left} vs ${r.counts.right} at ${at}`);
+    if (r.kind === 'stream') {
+      const c = r.counts.slice().sort((a, b) => (r.ask === 'least' ? a - b : b - a));
+      assert(Math.max(c[0], c[1]) / Math.min(c[0], c[1]) >= 1.25, `${r.ask}: ${c[0]} vs ${c[1]} at ${at}`);
+    }
+  }
+});
+
+console.log('\nFair scoring: the format of a challenge does not decide the score');
+// What a flawless player records, re-derived here from the generated content (weights as the challenges record them).
+function flawlessTrials(ch) {
+  const p = ch.params;
+  const tt = ch.meta.targetTime;
+  const one = (w = 1) => ({ correct: true, rt: w >= 0.5 ? tt : null, targetTime: tt, weight: w });
+  switch (ch.type) {
+    case 'echo': return ch.rounds.map((r) => one(r.seq && r.seq.length >= 6 ? 1.5 : 1));
+    case 'trace': return ch.rounds.flatMap((r) => r.targets.map(() => one()));
+    case 'spark': return p.events.map((e) => one(e.decoy ? 0.3 : 1));
+    case 'focus': return p.items.map((it) => one(it.respond || it.isTarget ? 1 : 0.2));
+    case 'flex': return p.trials.map(() => one());
+    case 'dual': return [...p.items.map((it) => one(it.kind === 'hit' ? 1 : 0.15)), one(2)];
+    case 'nexus': return ch.rounds.flatMap((r) => r.questions.map(() => one()));
+    default: return ch.rounds.map(() => one());
+  }
+}
+test('a flawless challenge earns about the same points whatever its format (±15 %)', () => {
+  const totals = {};
+  for (const T of CHALLENGE_TYPES) {
+    let sum = 0;
+    for (let k = 0; k < 20; k++) {
+      const ch = createChallenge(T.meta.id, 0.5, { rng: new RNG(`pts-${T.meta.id}-${k}`) });
+      const sm = new SessionManager({ mode: 'quick', profile: new PlayerProfile() }).startSession();
+      for (const tr of flawlessTrials(ch)) sum += sm.onTrial(tr, ch);
+    }
+    totals[T.meta.id] = sum / 20;
+  }
+  const vals = Object.values(totals).sort((a, b) => a - b);
+  const median = vals[Math.floor(vals.length / 2)];
+  const off = Object.entries(totals).filter(([, v]) => Math.abs(v / median - 1) > 0.15).map(([k, v]) => `${k} ${(v / median).toFixed(2)}×`);
+  assert(!off.length, `away from the median: ${off.join(', ')}`);
+});
+test('the score multiplier grows by the same amount per flawless challenge, whatever its format', () => {
+  const growth = {};
+  for (const T of CHALLENGE_TYPES) {
+    const ch = createChallenge(T.meta.id, 0.5, { rng: new RNG(`heat-${T.meta.id}`) });
+    const sm = new SessionManager({ mode: 'quick', profile: new PlayerProfile() }).startSession();
+    flawlessTrials(ch).forEach((tr) => sm.onTrial(tr, ch));
+    growth[T.meta.id] = sm.multiplier();
+  }
+  const vals = Object.values(growth);
+  assert(Math.max(...vals) - Math.min(...vals) < 0.005, JSON.stringify(growth));
+});
+
 test('the web version label matches package.json (Android reads its versionName from there)', async () => {
   const { APP_VERSION } = await import('../src/version.js');
   const pkg = JSON.parse(readFileSync(join(dirname(fileURLToPath(import.meta.url)), '..', 'package.json'), 'utf8'));

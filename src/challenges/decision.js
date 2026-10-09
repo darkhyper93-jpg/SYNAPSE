@@ -1,7 +1,9 @@
 // DECISION — decisions under time pressure. Precision still matters most:
-// timeouts and wrong answers score zero.
+// timeouts and wrong answers score zero. Every round can be settled by quick estimation (the
+// approximate number sense tells amounts ~15–20 % apart; reading a number takes ~300 ms): harder
+// levels give less time and closer amounts, never a gap only exact counting or adding could find.
 import { Challenge } from '../engine/challenge.js';
-import { byDiff, sum } from '../utils/math.js';
+import { byDiff, byDiffF, sum } from '../utils/math.js';
 import { pickShapes, COLORS } from '../data/visuals.js';
 import { sym, inlineSym, colorOption } from './common.js';
 import { h } from '../utils/dom.js';
@@ -21,13 +23,20 @@ export class DecisionChallenge extends Challenge {
     return byDiff(this.difficulty, 3200, 1700);
   }
 
+  /** Time to answer each kind of round (also what the fairness tests check). */
+  answerTime(kind) {
+    if (kind === 'compare') return this.limit() + 600;
+    if (kind === 'value') return this.limit() + byDiff(this.difficulty, 2000, 2200); // ≥ 300 ms per number shown
+    return this.limit();
+  }
+
   make_stream() {
     const d = this.difficulty;
     const rng = this.rng;
     const k = d < 0.4 ? 3 : 4;
     const colors = rng.sample(['red', 'blue', 'yellow', 'green', 'violet'], k);
     const total = byDiff(d, 10, 20);
-    const margin = d < 0.6 ? 2 : 1;
+    const margin = 2; // with uniqueExtreme's 25 % ratio: a lead you can feel in a fast stream
     const ask = rng.pick(['least', 'most']);
     // Build counts with a unique extreme.
     let counts;
@@ -49,15 +58,17 @@ export class DecisionChallenge extends Challenge {
 
   uniqueExtreme(counts, ask, margin) {
     const sorted = counts.slice().sort((a, b) => (ask === 'least' ? a - b : b - a));
-    return Math.abs(sorted[1] - sorted[0]) >= margin;
+    const [a, b] = [sorted[0], sorted[1]];
+    return Math.abs(b - a) >= margin && Math.max(a, b) / Math.min(a, b) >= 1.25;
   }
 
   make_compare() {
     const d = this.difficulty;
     const rng = this.rng;
     const [target, ...others] = pickShapes(rng, 4, d);
-    const diff = d < 0.35 ? rng.int(3, 4) : d < 0.7 ? 2 : 1;
     const base = rng.int(byDiff(d, 3, 6), byDiff(d, 5, 9));
+    // the extra items shrink from ~80 % to ~20 % of the count, never under 16 % (estimable at a glance)
+    const diff = Math.max(1, Math.ceil(base * 0.16), Math.round(base * byDiffF(d, 0.8, 0.2)));
     const more = rng.chance(0.5) ? 'left' : 'right';
     const counts = { left: base, right: base };
     counts[more] += diff;
@@ -79,15 +90,18 @@ export class DecisionChallenge extends Challenge {
     const rng = this.rng;
     const n = d < 0.5 ? 3 : 4;
     const terms = d < 0.3 ? 2 : 3;
-    const gap = d < 0.6 ? 3 : 1;
+    // the best card leads the next by 30 % of its total at first, 12 % at the top: rounding each
+    // number to its tens is enough, exact sums never are needed
+    const lead = byDiffF(d, 0.3, 0.12);
+    const gapFor = (cards) => Math.max(2, Math.ceil(lead * Math.abs(Math.max(...cards.map(sum)))));
     let cards;
     let guard = 0;
     do {
       cards = Array.from({ length: n }, () => Array.from({ length: terms }, () => rng.int(1, byDiff(d, 9, 19)) * (d >= 0.7 && rng.chance(0.25) ? -1 : 1)));
       guard++;
-    } while (!this.clearMax(cards, gap) && guard < 200);
+    } while (!this.clearMax(cards, gapFor(cards)) && guard < 400);
     const sums = cards.map(sum);
-    return { kind: 'value', cards, answer: sums.indexOf(Math.max(...sums)), gap };
+    return { kind: 'value', cards, answer: sums.indexOf(Math.max(...sums)), gap: gapFor(cards) };
   }
 
   clearMax(cards, gap) {
@@ -139,8 +153,8 @@ export class DecisionChallenge extends Challenge {
     await this.askOptions({
       options: r.colors.map((c) => colorOption(c, this.settings)),
       correctValue: r.answer,
-      timeLimit: this.limit(),
-      targetTime: this.limit() * 0.55,
+      timeLimit: this.answerTime('stream'),
+      targetTime: this.answerTime('stream') * 0.55,
       trial: { explanation: r.colors.map((c, i) => `${t(`color.${c}`)} ${r.counts[i]}`).join(' · ') },
     });
   }
@@ -166,8 +180,8 @@ export class DecisionChallenge extends Challenge {
         { value: 'right', label: t('decision.right'), html: `${t('decision.right')} →` },
       ],
       correctValue: r.answer,
-      timeLimit: this.limit() + 600,
-      targetTime: (this.limit() + 600) * 0.55,
+      timeLimit: this.answerTime('compare'),
+      targetTime: this.answerTime('compare') * 0.55,
       cols: 2,
       trial: { explanation: `${r.counts.left} vs ${r.counts.right}` },
     });
@@ -182,8 +196,8 @@ export class DecisionChallenge extends Challenge {
         html: `<span class="value-card">${c.map((v) => `<b class="${v < 0 ? 'neg' : ''}">${v < 0 ? '−' + Math.abs(v) : v}</b>`).join('<i>+</i>')}</span>`,
       })),
       correctValue: r.answer,
-      timeLimit: this.limit() + byDiff(this.difficulty, 1800, 1400),
-      targetTime: (this.limit() + 1500) * 0.55,
+      timeLimit: this.answerTime('value'),
+      targetTime: this.answerTime('value') * 0.55,
       cols: r.cards.length,
       className: 'is-values',
       trial: { explanation: r.cards.map((c) => sum(c)).join(' · ') },

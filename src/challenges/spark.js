@@ -33,6 +33,11 @@ export class SparkChallenge extends Challenge {
     this.params = { size, window, events };
   }
 
+  /** Every spark is a trial; a decoy left alone counts 0.3. */
+  pointUnits() {
+    return this.params.events.reduce((s, e) => s + (e.decoy ? 0.3 : 1), 0);
+  }
+
   validate() {
     const { events } = this.params;
     const targets = events.filter((e) => !e.decoy).length;

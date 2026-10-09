@@ -4,6 +4,9 @@
 import { clamp } from '../utils/math.js';
 
 export const BASE_POINTS = 100;
+// A flawless challenge is worth as much as POINT_UNITS full questions, whatever its format: a stream of
+// twenty quick taps and three long puzzles get the same budget (see Challenge.pointUnits()).
+export const POINT_UNITS = 3;
 
 export function difficultyMultiplier(d) {
   return 1 + 2 * clamp(d);
@@ -15,13 +18,15 @@ export function speedFactor(rt, targetTime) {
   return clamp(1.3 - 0.3 * r, 0.85, 1.25);
 }
 
+/** streak: the run in point units (SessionManager.heat; a flawless challenge adds POINT_UNITS). */
 export function streakMultiplier(streak) {
   return 1 + Math.min(streak, 25) * 0.02;
 }
 
-export function trialPoints({ correct, rt, targetTime, weight = 1 }, { difficulty, streak = 0, modeMult = 1 }) {
+/** scale: the challenge's share of POINT_UNITS per unit of weight (1 for a three-question challenge). */
+export function trialPoints({ correct, rt, targetTime, weight = 1 }, { difficulty, streak = 0, modeMult = 1, scale = 1 }) {
   if (!correct) return 0;
-  const raw = BASE_POINTS * difficultyMultiplier(difficulty) * speedFactor(rt, targetTime) * streakMultiplier(streak) * weight * modeMult;
+  const raw = BASE_POINTS * difficultyMultiplier(difficulty) * speedFactor(rt, targetTime) * streakMultiplier(streak) * weight * scale * modeMult;
   return Math.max(5, Math.round(raw / 5) * 5);
 }
 
