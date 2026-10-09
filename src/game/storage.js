@@ -1,7 +1,7 @@
 // Persistence layer. Everything goes through an adapter so a future backend
 // (accounts, sync, leaderboards) can replace localStorage without touching game code.
 
-import { PREFIX, mirror } from './durable.js';
+import { PREFIX, mirror, writable } from './durable.js';
 
 export class LocalStorageAdapter {
   load(key, fallback) {
@@ -20,6 +20,7 @@ export class LocalStorageAdapter {
     }
   }
   save(key, value) {
+    if (!writable()) return false; // reloading onto a newer copy (see durable.js)
     try {
       const raw = JSON.stringify(value);
       localStorage.setItem(PREFIX + key, raw);
@@ -30,6 +31,7 @@ export class LocalStorageAdapter {
     }
   }
   remove(key) {
+    if (!writable()) return;
     try {
       localStorage.removeItem(PREFIX + key);
       mirror(key, null);

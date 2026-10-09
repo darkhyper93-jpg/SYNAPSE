@@ -21,6 +21,7 @@ let seq = 0;
 let ready = null; // resolves once boot has compared both stores; mirrored writes wait for it
 const queue = new Map(); // key -> raw JSON string, or null for a removal
 let flushing = false;
+let frozen = false; // set once the page is reloading onto a copy restored late: no more saves from the old data
 
 function available() {
   try {
@@ -107,13 +108,20 @@ function snapshotEntries(withSeq) {
 export function restoreDurable() {
   if (!available()) return Promise.resolve('skipped');
   let late = false;
+  // What localStorage came back with. Read now: once the game starts (after the timeout), its saves
+  // move the counter on, and a stale localStorage could then look as new as the copy.
+  let booted = 0;
+  try {
+    booted = lsSeq();
+  } catch {
+    return Promise.resolve('skipped');
+  }
   const work = (async () => {
     try {
       const conn = await db();
       const saved = await readAll(conn);
-      const local = lsSeq();
       const copy = Number(saved[SEQ]) || 0;
-      if (copy > local) {
+      if (copy > booted) {
         for (const k of DURABLE_KEYS) {
           const v = saved[k];
           if (typeof v === 'string') localStorage.setItem(PREFIX + k, v);
@@ -122,12 +130,16 @@ export function restoreDurable() {
         localStorage.setItem(PREFIX + SEQ, String(copy));
         seq = copy;
         if (late) {
-          queue.clear(); // writes made on the older data must not land on top of the restored copy
+          // writes made on the older data must not land on top of the restored copy, nor the saves
+          // that leaving the page triggers (pause handlers flush the profile still in memory)
+          frozen = true;
+          queue.clear();
           globalThis.location?.reload?.();
         }
         return 'restored';
       }
       // localStorage is current: make the copy match it
+      const local = lsSeq();
       seq = Math.max(seq, local, copy) + (copy !== local ? 1 : 0);
       if (copy !== local || !(SEQ in saved)) {
         try {
@@ -150,6 +162,11 @@ export function restoreDurable() {
     }, RESTORE_TIMEOUT_MS),
   );
   return Promise.race([work, timeout]);
+}
+
+/** False once a late restore is reloading the page: storage must not write anything more. */
+export function writable() {
+  return !frozen;
 }
 
 async function flush() {
@@ -180,7 +197,7 @@ async function flush() {
  * progress key. Writes made in the same task share one IndexedDB transaction.
  */
 export function mirror(key, raw) {
-  if (!DURABLE_KEYS.has(key) || !available()) return;
+  if (frozen || !DURABLE_KEYS.has(key) || !available()) return;
   try {
     // continue from the stored counter: another tab of the web version may have moved it on
     seq = Math.max(seq, lsSeq()) + 1;

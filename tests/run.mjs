@@ -626,6 +626,49 @@ test('a newer copy that arrives after the start timeout is still restored (and t
   }));
 });
 
+test('a late newer copy still wins after the game has saved a few times on the older data', () => {
+  const idb = fakeIndexedDB({ profile: '{"new":1}', __seq: 4 }, { delay: 1500 });
+  return inLane(() => withDurable(fakeLocalStorage({ [`${P}profile`]: '{"old":1}', [`${P}__seq`]: '2' }), idb, async (d) => {
+    let reloaded = false;
+    globalThis.location = { reload: () => (reloaded = true) };
+    try {
+      assert((await d.restoreDurable()) === 'skipped', 'the start must not wait for it');
+      const ls = globalThis.localStorage;
+      // saves made at start-up (recovering a pending session, settings) push the counter past the copy's
+      for (const v of ['{"old":2}', '{"old":3}', '{"old":4}']) {
+        ls.setItem(`${P}profile`, v);
+        d.mirror('profile', v);
+      }
+      await new Promise((r) => setTimeout(r, 600));
+      assert(ls.getItem(`${P}profile`) === '{"new":1}', `newer copy not restored (localStorage has ${ls.getItem(`${P}profile`)})`);
+      assert(idb.data.get('profile') === '{"new":1}', `the newer copy was overwritten with ${idb.data.get('profile')}`);
+      assert(reloaded, 'page not reloaded onto the restored data');
+    } finally {
+      delete globalThis.location;
+    }
+  }));
+});
+
+test('after a late restore nothing is saved until the reload (leaving the page saves the old state)', () => {
+  const idb = fakeIndexedDB({ profile: '{"new":1}', __seq: 9 }, { delay: 1500 });
+  return inLane(() => withDurable(fakeLocalStorage({ [`${P}profile`]: '{"old":1}', [`${P}__seq`]: '2' }), idb, async (d) => {
+    globalThis.location = { reload: () => {} };
+    try {
+      assert((await d.restoreDurable()) === 'skipped', 'the start must not wait for it');
+      assert(d.writable(), 'saving must work while nothing has been restored');
+      await new Promise((r) => setTimeout(r, 600));
+      assert(!d.writable(), 'saves must stop once the page is reloading onto the restored copy');
+      d.mirror('profile', '{"old":2}'); // what a pause handler does as the page unloads
+      await settle();
+      await settle();
+      assert(idb.data.get('profile') === '{"new":1}' && idb.data.get('__seq') === 9, 'the copy changed after the restore');
+      assert(globalThis.localStorage.getItem(`${P}__seq`) === '9', 'the counter moved after the restore');
+    } finally {
+      delete globalThis.location;
+    }
+  }));
+});
+
 test('a hung IndexedDB never blocks the start for long', () =>
   inLane(() => withDurable(fakeLocalStorage(), fakeIndexedDB({}, { hang: true }), async (d) => {
     const t0 = Date.now();
