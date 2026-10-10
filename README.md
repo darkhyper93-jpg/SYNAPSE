@@ -195,3 +195,7 @@ node scripts/perf/repaints.cjs http://localhost:8080 '?nosw&hq&skipintro'   # qu
 node scripts/perf/noncomposited.cjs http://localhost:8080   # animaciones que no puede mover la GPU
 ```
 
+
+## Licencia
+
+© 2026 Dark_Hyper. Todos los derechos reservados: el código es visible, pero no se puede copiar, modificar ni publicar sin permiso. Las fuentes de `assets/fonts/` tienen su propia licencia (SIL OFL 1.1). Ver [LICENSE](LICENSE).
