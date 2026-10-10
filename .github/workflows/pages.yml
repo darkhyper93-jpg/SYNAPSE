@@ -33,7 +33,9 @@ jobs:
     needs: tests
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    # job permissions replace the workflow's, so reading the repository is listed again
     permissions:
+      contents: read
       pages: write
       id-token: write
     environment:
