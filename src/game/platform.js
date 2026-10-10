@@ -4,6 +4,8 @@
 // - Status bar / splash screen styling
 // - Low-power detection to keep animations smooth on modest phones
 
+import { listenForInstall } from './install.js';
+
 const cap = () => (typeof window !== 'undefined' ? window.Capacitor : null);
 
 export const isNative = () => !!cap()?.isNativePlatform?.();
@@ -72,6 +74,7 @@ export function initPlatform({ onBack, onPause, onResume }) {
     } catch {
       /* history unavailable (file://) */
     }
+    listenForInstall();
     registerServiceWorker();
   }
 

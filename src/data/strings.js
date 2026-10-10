@@ -200,6 +200,8 @@ const en = {
   // settings additions
   'set.haptics': 'Vibration', 'set.hapticsDesc': 'Subtle haptic feedback on taps, hits and level-ups.',
   'set.privacy': 'Privacy policy', 'set.privacyDesc': 'No data is collected. Everything stays on your device.', 'set.privacyBtn': 'Read',
+  'set.install': 'Install as an app', 'set.installDesc': 'Opens from your home screen, full screen and offline.', 'set.installBtn': 'Install',
+  'set.installIos': 'On iPhone or iPad: tap Share, then “Add to Home Screen”.',
   'set.help': 'Help', 'set.tutorial': 'Tutorial', 'set.tutorialDesc': 'See the introduction again.', 'set.tutorialBtn': 'Watch',
   // onboarding
   'onb.skip': 'Skip', 'onb.next': 'Next', 'onb.start': "Let's play",
@@ -383,6 +385,8 @@ const es = {
   'play.newStars': 'Nuevo récord ★', 'res.grade': 'Nota', 'home.backExit': 'Pulsa atrás otra vez para salir',
   'set.haptics': 'Vibración', 'set.hapticsDesc': 'Vibración suave al tocar, acertar y subir de nivel.',
   'set.privacy': 'Política de privacidad', 'set.privacyDesc': 'No se recopilan datos. Todo queda en tu dispositivo.', 'set.privacyBtn': 'Leer',
+  'set.install': 'Instalar como app', 'set.installDesc': 'Se abre desde la pantalla de inicio, a pantalla completa y sin internet.', 'set.installBtn': 'Instalar',
+  'set.installIos': 'En iPhone o iPad: toca Compartir y luego «Añadir a pantalla de inicio».',
   'set.help': 'Ayuda', 'set.tutorial': 'Tutorial', 'set.tutorialDesc': 'Vuelve a ver la introducción.', 'set.tutorialBtn': 'Ver',
   'onb.skip': 'Saltar', 'onb.next': 'Siguiente', 'onb.start': '¡A jugar!',
   'onb.welcome.title': 'Bienvenido a SYNAPSE', 'onb.welcome.body': 'Desafíos rápidos y variados para tu cerebro. Cada partida es distinta, y el juego aprende a conocerte.',

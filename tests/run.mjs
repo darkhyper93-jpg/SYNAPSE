@@ -264,7 +264,8 @@ test('in the Daily, stepping away after a miss uses the slot: no second try at i
 test('stepping away with no miss yet still costs nothing but the time', () => {
   const sm = new SessionManager({ mode: 'daily', profile: freshProfile() }).startSession();
   const plan = sm.next();
-  playInto(sm, plan, [right, right]);
+  // half of it played, whatever today's Daily deals (a fully answered one counts instead: see below)
+  playInto(sm, plan, [{ ...right, weight: plan.challenge.pointUnits() / 2 }]);
   const closed = sm.interruptCurrent({ elapsedMs: 3000, seen: true });
   assert(closed === null && sm.index === 0 && sm.score === 0 && sm.streak === 0, 'thrown away, slot kept');
 });
@@ -881,6 +882,103 @@ test('nothing the game ships needs what the policy forbids', () => {
   walk(join(REPO, 'src'));
   const bad = files.flatMap((f) => needsLooserPolicy(readFileSync(f, 'utf8')).map((w) => `${f.slice(REPO.length + 1)}: ${w}`));
   assert(!bad.length, bad.join(', '));
+});
+
+console.log('\nWeb version (GitHub Pages)');
+const { buildSite } = await import('../scripts/build-site.mjs');
+const { mkdtempSync, existsSync, rmSync } = await import('node:fs');
+const { tmpdir } = await import('node:os');
+// every local file a page or module asks for, followed from index.html through all imports
+function referencedFiles(dir) {
+  const seen = new Set();
+  const visit = (rel) => {
+    if (seen.has(rel)) return;
+    seen.add(rel);
+    if (!existsSync(join(dir, rel)) || !/\.(js|html|css|webmanifest)$/.test(rel)) return;
+    const text = readFileSync(join(dir, rel), 'utf8');
+    const refs = rel.endsWith('.html') ? [...text.matchAll(/(?:src|href)="([^"#?:]+)"/g)]
+      : rel.endsWith('.css') ? [...text.matchAll(/url\(['"]?([^'")?#:]+)/g)]
+        : rel.endsWith('.webmanifest') ? [...text.matchAll(/"src":\s*"([^"]+)"/g)]
+          : [...text.matchAll(/(?:import|from)\s*\(?\s*['"](\.{1,2}\/[^'"]+)['"]/g)];
+    refs.forEach(([, r]) => visit(join(dirname(rel), r).replace(/\\/g, '/')));
+  };
+  visit('index.html');
+  return [...seen];
+}
+test('the site folder holds everything the game loads', () => {
+  const out = mkdtempSync(join(tmpdir(), 'synapse-site-'));
+  try {
+    buildSite(out);
+    const missing = referencedFiles(out).filter((f) => !existsSync(join(out, f)));
+    assert(!missing.length, `missing: ${missing.slice(0, 5).join(', ')}`);
+    ['sw.js', 'privacy.html', 'manifest.webmanifest'].forEach((f) => assert(existsSync(join(out, f)), `${f} missing`));
+    assert(referencedFiles(out).length > 40, 'the import walk found too little to mean anything');
+  } finally {
+    rmSync(out, { recursive: true, force: true });
+  }
+});
+test('nothing but the game is published', () => {
+  const out = mkdtempSync(join(tmpdir(), 'synapse-site-'));
+  try {
+    buildSite(out);
+    const top = readdirSync(out).sort().join(' ');
+    assert(top === 'assets index.html manifest.webmanifest privacy.html src sw.js', `published: ${top}`);
+    assert(!existsSync(join(out, 'capacitor.js')), 'the web version runs without the native runtime');
+  } finally {
+    rmSync(out, { recursive: true, force: true });
+  }
+});
+
+const { createInstaller } = await import('../src/game/install.js');
+// a browser window as far as installing goes: its user agent, display mode and events
+function fakeBrowser({ ua = 'Mozilla/5.0 (Linux; Android 14) Chrome/130', installed = false } = {}) {
+  const w = new EventTarget();
+  w.navigator = { userAgent: ua, platform: 'Linux armv8l', maxTouchPoints: 5 };
+  w.matchMedia = (q) => ({ matches: installed && /display-mode/.test(q) });
+  return w;
+}
+function offerInstall(w, outcome = 'accepted') {
+  const e = new Event('beforeinstallprompt', { cancelable: true });
+  e.shown = 0;
+  e.prompt = () => { e.shown += 1; };
+  e.userChoice = Promise.resolve({ outcome });
+  w.dispatchEvent(e);
+  return e;
+}
+test('nothing to offer until the browser says the game can be installed', () => {
+  assert(createInstaller(fakeBrowser()).mode() === null);
+});
+test('the browser offer is kept for the Install button instead of popping up on its own', () => {
+  const w = fakeBrowser();
+  const inst = createInstaller(w);
+  const e = offerInstall(w);
+  assert(e.defaultPrevented, 'the browser banner should wait for the button');
+  assert(inst.mode() === 'prompt', `mode ${inst.mode()}`);
+});
+test('Install shows the browser dialog once; accepted means installed', async () => {
+  const w = fakeBrowser();
+  const inst = createInstaller(w);
+  const e = offerInstall(w, 'accepted');
+  assert((await inst.prompt()) === true && e.shown === 1, `shown ${e.shown}`);
+  assert(inst.mode() === null, 'an offer can only be used once');
+});
+test('a dismissed dialog reports false and the button goes away', async () => {
+  const w = fakeBrowser();
+  const inst = createInstaller(w);
+  offerInstall(w, 'dismissed');
+  assert((await inst.prompt()) === false && inst.mode() === null);
+});
+test('on iPhone, where browsers never offer it, the button explains how', () => {
+  const iphone = 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) Version/18.0 Mobile/15E148 Safari/604.1';
+  assert(createInstaller(fakeBrowser({ ua: iphone })).mode() === 'ios');
+  assert(createInstaller(fakeBrowser({ ua: iphone, installed: true })).mode() === null, 'already on the home screen');
+});
+test('once installed (from the browser menu too) nothing is offered', () => {
+  const w = fakeBrowser();
+  const inst = createInstaller(w);
+  offerInstall(w);
+  w.dispatchEvent(new Event('appinstalled'));
+  assert(inst.mode() === null);
 });
 
 await Promise.all(pending);

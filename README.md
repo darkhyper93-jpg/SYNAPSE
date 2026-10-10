@@ -6,7 +6,22 @@ SYNAPSE es un juego de desafíos cognitivos rápidos, variados y adaptativos, pe
 
 > SYNAPSE es un juego. Las puntuaciones reflejan el rendimiento dentro de las tareas de SYNAPSE: no es un test de CI, ni una herramienta médica, ni una medida clínica.
 
-## Cómo jugar
+## Jugar en la web (y instalarlo como app)
+
+**Jugar:** https://darkhyper93-jpg.github.io/SYNAPSE/ (cuando GitHub Pages esté activado, ver abajo)
+
+Funciona en el navegador de cualquier móvil u ordenador y **se puede instalar como app**. Después de la primera visita también funciona sin internet.
+
+- **Android (Chrome):** abre el enlace y ve a *Ajustes → Instalar como app*, o usa el menú ⋮ → **Instalar app** / **Añadir a pantalla de inicio**.
+- **iPhone / iPad (Safari):** toca **Compartir** y luego **Añadir a pantalla de inicio**.
+
+### Publicarlo en GitHub Pages (una sola vez)
+
+1. El repositorio tiene que ser **público** (en un repo privado, Pages requiere un plan de pago): *Settings → General → Danger Zone → Change visibility*.
+2. *Settings → Pages → Build and deployment → Source:* elige **GitHub Actions** (no «Deploy from a branch»).
+3. Listo. Cada vez que se sube un cambio a la rama principal (la rama por defecto del repositorio), el workflow `Web (GitHub Pages)` (`.github/workflows/pages.yml`) pasa el lint y los tests y, **solo si todo pasa**, publica el juego. `npm run build:site` arma la carpeta `_site/` con los archivos del juego (sin tests, ni Android, ni notas). Si algo falla, la página sigue con la última versión buena. También se puede lanzar a mano desde *Actions → Web (GitHub Pages) → Run workflow*.
+
+## Cómo jugar en tu ordenador
 
 No hay paso de compilación: es HTML, CSS y JavaScript (módulos ES). Solo hace falta servir la carpeta por HTTP:
 
@@ -124,7 +139,7 @@ Requisitos: Android Studio reciente (SDK 36) y JDK 21.
    - `listing.md`: nombre, descripciones ES/EN, categoría y respuestas para "Seguridad de los datos";
    - `icon-512.png` y `feature-graphic-es.png` / `feature-graphic-en.png` (1024×500, uno por idioma de la ficha);
    - `screenshots/{es,en}/phone-*.png` (1080×1920) y `tablet-*.png` (1440×2560, 9:16 como pide Play para pantallas grandes).
-5. **Política de privacidad**: Play pide una URL pública. Activa GitHub Pages (*Settings → Pages → Deploy from branch*, raíz). La política queda en `https://<usuario>.github.io/SYNAPSE/privacy.html`, y de paso el juego queda jugable como web/PWA en esa dirección. La misma política está dentro de la app, en *Ajustes → Política de privacidad*.
+5. **Política de privacidad**: Play pide una URL pública. Con GitHub Pages activado (ver *Publicarlo en GitHub Pages*), la política queda en `https://darkhyper93-jpg.github.io/SYNAPSE/privacy.html`. La misma política está dentro de la app, en *Ajustes → Política de privacidad*.
 
 ### Regenerar recursos gráficos
 
@@ -145,7 +160,8 @@ src/
                           difficultyManager.js, scoreSystem.js, sessionManager.js, daily.js
   challenges/             un archivo por desafío + common.js (tableros, opciones, símbolos)
   game/                   playerProfile.js, settings.js, storage.js, audio.js, i18n.js,
-                          haptics.js, platform.js (Capacitor/PWA: atrás, pausa, barra de estado)
+                          haptics.js, platform.js (Capacitor/PWA: atrás, pausa, barra de estado),
+                          install.js (instalar la versión web como app)
   components/             ui.js (router, transiciones, botón atrás, ondas táctiles, modales),
                           charts.js, fx.js (puntos voladores, combos, cuenta atrás, celebraciones), demos.js
     screens/              onboarding, home, play, results, profile, settings
@@ -154,7 +170,7 @@ src/
   styles/                 fonts.css (fuentes locales), main.css, challenges.css, fx.css
 assets/                   fuentes (OFL) e iconos
 android/                  proyecto nativo Capacitor
-scripts/                  build-web.mjs, make-icons.cjs, store-screenshots.cjs, perf/ (mediciones de fluidez)
+scripts/                  build-web.mjs (www/ para Android), build-site.mjs (_site/ para GitHub Pages), make-icons.cjs, store-screenshots.cjs, perf/ (mediciones de fluidez)
 store/                    ficha de Play Store, icono, gráfico destacado y capturas
 tests/run.mjs             tests del motor (sin dependencias)
 ```

@@ -1,18 +1,11 @@
 // Copies the web game into www/ (Capacitor's webDir) and adds the Capacitor runtime.
 // No bundler needed: the game is plain ES modules.
-import { rmSync, mkdirSync, cpSync, readFileSync, writeFileSync, existsSync } from 'node:fs';
-import { join, dirname } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { cpSync, readFileSync, writeFileSync, existsSync } from 'node:fs';
+import { join } from 'node:path';
+import { ROOT as root, copyWebFiles } from './web-files.mjs';
 
-const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const out = join(root, 'www');
-
-rmSync(out, { recursive: true, force: true });
-mkdirSync(out, { recursive: true });
-
-for (const item of ['src', 'assets', 'manifest.webmanifest', 'sw.js', 'privacy.html']) {
-  cpSync(join(root, item), join(out, item), { recursive: true });
-}
+copyWebFiles(out);
 
 const runtime = join(root, 'node_modules/@capacitor/core/dist/capacitor.js');
 if (!existsSync(runtime)) {
