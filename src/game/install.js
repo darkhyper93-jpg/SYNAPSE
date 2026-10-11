@@ -3,19 +3,27 @@
 //   It is kept (instead of the browser's own banner) and replayed when the player taps Install.
 // - iPhone / iPad: browsers never offer it; the player adds it from the Share menu, so the row explains how.
 // - Already installed (opened from the home screen) or the native app: nothing is offered.
+// The browser makes its offer once, shortly after the page loads, so boot.js starts listening before
+// the rest of the game loads (listening later can miss it, and then no Install button ever appears).
 
 /**
  * @param {Window} win the browser window (a stand-in in tests)
- * @returns {{ mode: () => 'prompt' | 'ios' | null, prompt: () => Promise<boolean> }}
+ * @returns {{ mode: () => 'prompt' | 'ios' | null, prompt: () => Promise<boolean>, onChange: (cb: () => void) => () => void }}
  */
 export function createInstaller(win) {
   const nav = win.navigator;
   let offer = null;
+  const watchers = new Set();
+  const changed = () => watchers.forEach((cb) => cb());
   win.addEventListener('beforeinstallprompt', (e) => {
     e.preventDefault();
     offer = e;
+    changed();
   });
-  win.addEventListener('appinstalled', () => (offer = null));
+  win.addEventListener('appinstalled', () => {
+    offer = null;
+    changed();
+  });
 
   const isIOS = () => /iphone|ipad|ipod/i.test(nav.userAgent) || (nav.platform === 'MacIntel' && nav.maxTouchPoints > 1);
   // the manifest asks for fullscreen; some browsers fall back to standalone
@@ -41,15 +49,21 @@ export function createInstaller(win) {
         return false;
       }
     },
+    /** Calls cb whenever the offer arrives or goes away. Returns a function that stops it. */
+    onChange(cb) {
+      watchers.add(cb);
+      return () => watchers.delete(cb);
+    },
   };
 }
 
 let current = null;
 
-/** Starts listening for the browser's offer (web only; call once, early). */
+/** Starts listening for the browser's offer (web only; call as early as possible, again is harmless). */
 export function listenForInstall(win = window) {
   current ??= createInstaller(win);
 }
 
 export const installMode = () => current?.mode() ?? null;
 export const promptInstall = () => current?.prompt() ?? Promise.resolve(false);
+export const onInstallChange = (cb) => current?.onChange(cb) ?? (() => {});

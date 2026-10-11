@@ -980,6 +980,17 @@ test('once installed (from the browser menu too) nothing is offered', () => {
   w.dispatchEvent(new Event('appinstalled'));
   assert(inst.mode() === null);
 });
+test('a screen already open hears when the offer arrives or goes away', () => {
+  const w = fakeBrowser();
+  const inst = createInstaller(w);
+  const seen = [];
+  const stop = inst.onChange(() => seen.push(inst.mode()));
+  offerInstall(w);
+  w.dispatchEvent(new Event('appinstalled'));
+  stop();
+  offerInstall(w);
+  assert(seen.join() === 'prompt,', `seen ${JSON.stringify(seen)}`);
+});
 
 await Promise.all(pending);
 console.log(`\n${passed} passed, ${failed} failed\n`);

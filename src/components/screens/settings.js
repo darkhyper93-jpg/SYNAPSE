@@ -6,12 +6,20 @@ import { profile } from '../../game/playerProfile.js';
 import { sfx } from '../../game/audio.js';
 import { plugin } from '../../game/platform.js';
 import { APP_VERSION } from '../../version.js';
-import { installMode, promptInstall } from '../../game/install.js';
+import { installMode, onInstallChange, promptInstall } from '../../game/install.js';
 
 /** "Install as an app" (web version only, while the game can be installed): the browser's dialog, or how on iPhone. */
 function installRow() {
   const mode = installMode();
-  if (!mode) return null;
+  if (!mode) {
+    // The browser can make its offer while Settings is open: the row appears in this spot then.
+    const spot = document.createComment('install');
+    const stop = onInstallChange(() => {
+      if (spot.isConnected && installMode()) spot.replaceWith(installRow());
+      if (!spot.isConnected) stop();
+    });
+    return spot;
+  }
   const row = h('div.set-row', h('div.set-text', h('b', t('set.install')), h('small', t('set.installDesc'))),
     h('button.btn.btn-ghost', {
       type: 'button',
